@@ -1,0 +1,69 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: db-utility-sqlserver
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=SqlServer2022!
+    ports:
+      - '1499:1433'
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+      - ./docker/mssql/setup.sql:/docker-entrypoint-initdb.d/setup.sql
+      - ./docker/mssql/entrypoint.sh:/entrypoint.sh
+    entrypoint: /bin/bash /entrypoint.sh
+    networks:
+      - db-network
+
+  mysql:
+    image: mysql:8.0
+    container_name: db-utility-mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=mysqlroot
+      - MYSQL_DATABASE=dbutility_test
+    ports:
+      - '3399:3306'
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - db-network
+
+  mariadb:
+    image: mariadb:latest
+    container_name: db-utility-mariadb
+    environment:
+      - MARIADB_ROOT_PASSWORD=mariadbroot
+      - MARIADB_DATABASE=dbutility_test
+    ports:
+      - '3398:3306'
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./docker/mariadb/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - db-network
+
+  postgres:
+    image: postgres:16
+    container_name: db-utility-postgres
+    environment:
+      - POSTGRES_PASSWORD=postgresroot
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=dbutility_test
+    ports:
+      - '5499:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - db-network
+
+networks:
+  db-network:
+    driver: bridge
+
+volumes:
+  sqlserver_data:
+  mysql_data:
+  mariadb_data:
+  postgres_data:

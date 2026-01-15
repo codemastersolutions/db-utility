@@ -37,7 +37,18 @@ const addConnectionOptions = (cmd: Command) => {
     .option('--ssl', 'Habilitar SSL');
 };
 
-const getConnectionConfig = async (options: any): Promise<DatabaseConfig> => {
+interface CliOptions {
+  config?: string;
+  type?: string;
+  host?: string;
+  port?: string;
+  username?: string;
+  password?: string;
+  database?: string;
+  ssl?: boolean;
+}
+
+const getConnectionConfig = async (options: CliOptions): Promise<DatabaseConfig> => {
   const overrides: Partial<DatabaseConfig> = {};
 
   if (options.type) overrides.type = options.type as DatabaseType;
@@ -53,7 +64,7 @@ const getConnectionConfig = async (options: any): Promise<DatabaseConfig> => {
 
 const connectCommand = program.command('connect').description('Conectar ao banco de dados');
 
-addConnectionOptions(connectCommand).action(async (options) => {
+addConnectionOptions(connectCommand).action(async (options: CliOptions) => {
   try {
     console.log('Carregando configuração...');
     const config = await getConnectionConfig(options);
@@ -76,7 +87,7 @@ const introspectCommand = program
   .command('introspect')
   .description('Realizar introspecção no banco de dados');
 
-addConnectionOptions(introspectCommand).action(async (options) => {
+addConnectionOptions(introspectCommand).action(async (options: CliOptions) => {
   try {
     const config = await getConnectionConfig(options);
     console.log(`Conectando para introspecção em ${config.database}...`);
@@ -91,7 +102,7 @@ const exportCommand = program
   .command('export')
   .description('Exportar models (Sequelize, TypeORM, Prisma)');
 
-addConnectionOptions(exportCommand).action(async (options) => {
+addConnectionOptions(exportCommand).action(async (options: CliOptions) => {
   try {
     const config = await getConnectionConfig(options);
     console.log(`Conectando para exportação em ${config.database}...`);
