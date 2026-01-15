@@ -52,7 +52,7 @@ describe('PostgresConnector', () => {
     );
   });
 
-  it('deve executar query', async () => {
+  it('deve executar query de metadados permitida', async () => {
     await connector.connect();
 
     // Obtém a instância mockada do Pool
@@ -63,9 +63,15 @@ describe('PostgresConnector', () => {
     const pool = poolMock.mock.results[0].value;
     pool.query.mockResolvedValue({ rows: [{ id: 1 }] });
 
-    const result = await connector.query('SELECT * FROM table');
+    const sql = `
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+    `;
+
+    const result = await connector.query(sql);
     expect(result).toEqual([{ id: 1 }]);
-    expect(pool.query).toHaveBeenCalledWith('SELECT * FROM table', undefined);
+    expect(pool.query).toHaveBeenCalledWith(sql, undefined);
   });
 
   it('deve desconectar', async () => {

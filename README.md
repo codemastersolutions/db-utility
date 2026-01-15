@@ -12,24 +12,102 @@ DbUtility is a powerful utility for manipulating Microsoft SQL Server, MySQL, an
 ## Features
 
 - **Multi-Database Support**: Connect to Microsoft SQL Server, MySQL, and PostgreSQL using official drivers (`mssql`, `mysql2`, `pg`).
-- **Flexible Configuration**: Connection details via `.env`, JavaScript, or JSON configuration files.
+- **Flexible Configuration**: Connection details via CLI, `.env`, JSON configuration files.
 - **Introspection**: Analyze your database to list tables, views, stored procedures, functions, and triggers.
-- **Model Export**: Export database tables to Sequelize, TypeORM, and Prisma models.
-- **Migration Generation**: Create migrations from existing database tables for Sequelize, TypeORM, and Prisma, handling constraints, indexes, and data types correctly.
+- **Model Export**: Export database tables to Sequelize, TypeORM, and Prisma models (Coming soon).
+- **Migration Generation**: Create migrations from existing database tables for Sequelize, TypeORM, and Prisma (Coming soon).
 
 ## Installation
 
 ```bash
 npm install @codemastersolutions/db-utility
+# or globally
+npm install -g @codemastersolutions/db-utility
 ```
 
-## Usage
+## Configuration
 
-```typescript
-import { DbUtility } from '@codemastersolutions/db-utility';
+### Initialization
 
-// Example usage
+You can initialize a default configuration file using the CLI command:
+
+```bash
+dbutility --init
 ```
+
+If the file already exists, you can force recreation with default values:
+
+```bash
+dbutility --init -f
+# or
+dbutility --init --force
+```
+
+### Configuration File (dbutility.config.json)
+
+The configuration file allows you to define CLI language, output directories, and naming patterns.
+
+```json
+{
+  "language": "en",
+  "introspection": {
+    "outputDir": "db-utility-introspect"
+  },
+  "migrations": {
+    "outputDir": "db-utility-migrations",
+    "fileNamePattern": "timestamp-prefix"
+  }
+}
+```
+
+### Environment Variables (.env)
+
+You can also configure DbUtility using environment variables. JSON file configurations take precedence over environment variables if both are present.
+
+```env
+# Language (pt-BR, en, es)
+DB_UTILITY_LANG=en
+
+# Output Directories
+DB_UTILITY_INTROSPECTION_OUTPUT_DIR=my-introspect-dir
+DB_UTILITY_MIGRATIONS_OUTPUT_DIR=my-migrations-dir
+
+# Migration File Name Pattern (timestamp-prefix, prefix-timestamp)
+DB_UTILITY_MIGRATIONS_FILE_NAME_PATTERN=prefix-timestamp
+```
+
+## CLI - Command Line Interface
+
+> **Security Note**: We strongly recommend using a database user with **read-only** permissions (SELECT) when performing introspection and export operations. This minimizes the risk of accidental data modifications. The DbUtility library only executes metadata queries (database structure) and blocks commands that could modify data or read business table rows.
+
+DbUtility offers a robust CLI to interact with your databases.
+
+### Connect to Database
+
+Test connection to your database.
+
+```bash
+dbutility connect -t postgres -H localhost -P 5432 -u username -p password -d database_name --ssl
+```
+
+### Perform Introspection
+
+Analyze database schema and generate introspection reports.
+
+```bash
+dbutility introspect -t mysql -H localhost -P 3306 -u username -p password -d database_name
+```
+
+### CLI Options
+
+- `-t, --type <type>`: Database type (postgres, mysql, mssql)
+- `-H, --host <host>`: Database host
+- `-P, --port <port>`: Database port
+- `-u, --username <username>`: Database username
+- `-p, --password <password>`: Database password
+- `-d, --database <database>`: Database name
+- `--ssl`: Enable SSL (optional)
+- `-c, --config <path>`: Path to a specific configuration file
 
 ## License
 

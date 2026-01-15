@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import { existsSync, readFileSync } from 'fs';
 import { extname, resolve } from 'path';
 import { DatabaseConfig, DatabaseType } from '../types/database';
+import { DbUtilityError } from '../errors/DbUtilityError';
 
 dotenv.config();
 
@@ -55,7 +56,7 @@ export class ConfigLoader {
 
     // Validação básica
     if (!config.type && !config.connectionString) {
-      throw new Error('Tipo de banco de dados (type) ou connectionString é obrigatório.');
+      throw new DbUtilityError('CONFIG_DB_TYPE_OR_CONNECTION_STRING_REQUIRED');
     }
 
     return config;
@@ -64,7 +65,7 @@ export class ConfigLoader {
   private static async loadFromFile(path: string): Promise<DatabaseConfig> {
     const absolutePath = resolve(process.cwd(), path);
     if (!existsSync(absolutePath)) {
-      throw new Error(`Arquivo de configuração não encontrado: ${absolutePath}`);
+      throw new DbUtilityError('CONFIG_FILE_NOT_FOUND', absolutePath);
     }
 
     const ext = extname(absolutePath);
@@ -77,14 +78,12 @@ export class ConfigLoader {
       return config.default || config;
     }
 
-    throw new Error(`Formato de arquivo não suportado: ${ext}`);
+    throw new DbUtilityError('CONFIG_FILE_FORMAT_UNSUPPORTED', ext);
   }
 
   private static loadFromEnv(): DatabaseConfig {
     if (!process.env.DB_TYPE) {
-      throw new Error(
-        'Configuração de banco de dados não encontrada. Defina as variáveis de ambiente ou crie um arquivo de configuração.',
-      );
+      throw new DbUtilityError('CONFIG_DB_TYPE_REQUIRED');
     }
 
     return {

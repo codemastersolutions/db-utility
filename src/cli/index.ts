@@ -2,9 +2,19 @@
 import { Command } from 'commander';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { AppConfigLoader } from '../config/AppConfig';
+import { ConfigInitializer } from '../config/ConfigInitializer';
 import { ConfigLoader } from '../config/ConfigLoader';
 import { ConnectionFactory } from '../database/ConnectionFactory';
+import { DbUtilitySecurityError } from '../database/SqlSafety';
+import { DbUtilityError } from '../errors/DbUtilityError';
+import { getMessages } from '../i18n/messages';
+import { IntrospectionLogger } from '../introspection/IntrospectionLogger';
+import { IntrospectionService } from '../introspection/IntrospectionService';
 import { DatabaseConfig, DatabaseType } from '../types/database';
+
+const appConfig = AppConfigLoader.load();
+const messages = getMessages(appConfig.language);
 
 const getPackageVersion = (): string => {
   try {
@@ -21,20 +31,74 @@ const program = new Command();
 program
   .name('db-utility')
   .alias('dbutility')
-  .description('O mais poderoso utilitário de banco de dados.')
+  .description(messages.cli.appDescription)
   .version(getPackageVersion());
 
-// Definição de opções comuns
+program
+  .option('--init', messages.cli.initOptionDescription)
+  .option('-f, --force', messages.cli.forceOptionDescription);
+
+const handleCliError = (error: unknown) => {
+  if (error instanceof DbUtilitySecurityError) {
+    const text =
+      error.code === 'UNSAFE_OPERATION'
+        ? messages.cli.securitySqlUnsafeOperation
+        : messages.cli.securitySqlUnsafeDataSelect;
+    console.error(messages.cli.securityError, text);
+  } else if (error instanceof DbUtilityError) {
+    let text: string;
+    switch (error.code) {
+      case 'INTROSPECTION_DB_TYPE_REQUIRED':
+        text = messages.cli.introspectionDbTypeRequired;
+        break;
+      case 'INTROSPECTION_DB_TYPE_UNSUPPORTED':
+        text = messages.cli.introspectionDbTypeUnsupported;
+        break;
+      case 'APP_CONFIG_FILE_NOT_FOUND':
+        text = messages.cli.appConfigFileNotFound(error.details || '?');
+        break;
+      case 'APP_CONFIG_FILE_FORMAT_UNSUPPORTED':
+        text = messages.cli.appConfigFileFormatUnsupported(error.details || '?');
+        break;
+      case 'CONFIG_FILE_NOT_FOUND':
+        text = messages.cli.configFileNotFound(error.details || '?');
+        break;
+      case 'CONFIG_FILE_FORMAT_UNSUPPORTED':
+        text = messages.cli.configFileFormatUnsupported(error.details || '?');
+        break;
+      case 'CONFIG_DB_TYPE_OR_CONNECTION_STRING_REQUIRED':
+        text = messages.cli.configDbTypeOrConnectionStringRequired;
+        break;
+      case 'CONFIG_DB_TYPE_REQUIRED':
+        text = messages.cli.configDbTypeRequired;
+        break;
+      case 'CONNECTION_FAILED':
+        text = messages.cli.connectionFailed;
+        break;
+      default:
+        text = error.message;
+        break;
+    }
+    console.error(messages.cli.genericError, text);
+  } else {
+    console.error(
+      messages.cli.genericError,
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+  process.exit(1);
+};
+
 const addConnectionOptions = (cmd: Command) => {
   return cmd
-    .option('-c, --config <path>', 'Caminho para o arquivo de configuração')
-    .option('-t, --type <type>', 'Tipo de banco de dados (mysql, postgres, mssql)')
-    .option('-H, --host <host>', 'Host do banco de dados')
-    .option('-P, --port <port>', 'Porta do banco de dados')
-    .option('-u, --username <username>', 'Usuário do banco de dados')
-    .option('-p, --password <password>', 'Senha do banco de dados')
-    .option('-d, --database <database>', 'Nome do banco de dados')
-    .option('--ssl', 'Habilitar SSL');
+    .option('-c, --config <path>', messages.cli.optionConfigPath)
+    .option('-t, --type <type>', messages.cli.optionType)
+    .option('-H, --host <host>', messages.cli.optionHost)
+    .option('-P, --port <port>', messages.cli.optionPort)
+    .option('-u, --username <username>', messages.cli.optionUsername)
+    .option('-p, --password <password>', messages.cli.optionPassword)
+    .option('-d, --database <database>', messages.cli.optionDatabase)
+    .option('--ssl', messages.cli.optionSsl);
 };
 
 interface CliOptions {
@@ -62,70 +126,83 @@ const getConnectionConfig = async (options: CliOptions): Promise<DatabaseConfig>
   return ConfigLoader.load(options.config, overrides);
 };
 
-const connectCommand = program.command('connect').description('Conectar ao banco de dados');
+const connectCommand = program.command('connect').description(messages.cli.connectDescription);
 
 addConnectionOptions(connectCommand).action(async (options: CliOptions) => {
   try {
-    console.log('Carregando configuração...');
+    console.log(messages.cli.loadingConfig);
     const config = await getConnectionConfig(options);
 
-    console.log(`Tentando conectar ao banco de dados ${config.type}...`);
+    console.log(messages.cli.connecting(config.type));
     const connection = ConnectionFactory.create(config);
 
     await connection.connect();
-    console.log('✅ Conexão estabelecida com sucesso!');
+    console.log(messages.cli.connectSuccess);
 
     await connection.disconnect();
-    console.log('Conexão encerrada.');
+    console.log(messages.cli.connectionClosed);
   } catch (error) {
-    console.error('❌ Erro ao conectar:', error instanceof Error ? error.message : String(error));
-    process.exit(1);
+    handleCliError(error);
   }
 });
 
 const introspectCommand = program
   .command('introspect')
-  .description('Realizar introspecção no banco de dados');
+  .description(messages.cli.introspectDescription);
 
 addConnectionOptions(introspectCommand).action(async (options: CliOptions) => {
   try {
     const config = await getConnectionConfig(options);
-    console.log(`Conectando para introspecção em ${config.database}...`);
-    console.log('Funcionalidade de introspecção em desenvolvimento.');
+    console.log(messages.cli.introspectConnecting(config.database));
+
+    const service = new IntrospectionService(config);
+    const schema = await service.introspect();
+
+    const runDir = IntrospectionLogger.logSchema(config, schema, process.cwd(), appConfig);
+
+    console.log(messages.cli.introspectDone(schema.tables.length));
+    console.log(messages.cli.introspectSavedAt(runDir));
   } catch (error) {
-    console.error('❌ Erro:', error instanceof Error ? error.message : String(error));
-    process.exit(1);
+    handleCliError(error);
   }
 });
 
-const exportCommand = program
-  .command('export')
-  .description('Exportar models (Sequelize, TypeORM, Prisma)');
+const exportCommand = program.command('export').description(messages.cli.exportDescription);
 
 addConnectionOptions(exportCommand).action(async (options: CliOptions) => {
   try {
     const config = await getConnectionConfig(options);
-    console.log(`Conectando para exportação em ${config.database}...`);
-    console.log('Funcionalidade de exportação em desenvolvimento.');
+    console.log(messages.cli.introspectConnecting(config.database));
+    console.log(messages.cli.exportDevMessage);
   } catch (error) {
-    console.error('❌ Erro:', error instanceof Error ? error.message : String(error));
-    process.exit(1);
+    handleCliError(error);
   }
 });
 
-const migrateCommand = program
-  .command('migrate')
-  .description('Gerar migrations a partir do banco de dados');
+const migrateCommand = program.command('migrate').description(messages.cli.migrateDescription);
 
 addConnectionOptions(migrateCommand).action(async (options) => {
   try {
     const config = await getConnectionConfig(options);
-    console.log(`Conectando para migration em ${config.database}...`);
-    console.log('Funcionalidade de migration em desenvolvimento.');
+    console.log(messages.cli.introspectConnecting(config.database));
+    console.log(messages.cli.migrateDevMessage);
   } catch (error) {
-    console.error('❌ Erro:', error instanceof Error ? error.message : String(error));
-    process.exit(1);
+    handleCliError(error);
   }
 });
 
 program.parse(process.argv);
+
+const rootOptions = program.opts() as { init?: boolean; force?: boolean };
+const hasSubCommand = program.args && program.args.length > 0;
+
+if (rootOptions.init && !hasSubCommand) {
+  const result = ConfigInitializer.init(process.cwd(), rootOptions.force === true);
+  if (result.recreated) {
+    console.log(messages.cli.initRecreated(result.path));
+  } else if (result.created) {
+    console.log(messages.cli.initCreated(result.path));
+  } else {
+    console.log(messages.cli.initAlreadyExists(result.path));
+  }
+}

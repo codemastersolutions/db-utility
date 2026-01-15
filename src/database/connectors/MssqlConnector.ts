@@ -1,5 +1,7 @@
 import { ConnectionPool, config as MssqlConfig } from 'mssql';
+import { DbUtilityError } from '../../errors/DbUtilityError';
 import { DatabaseConfig, IDatabaseConnector } from '../../types/database';
+import { assertSafeSql } from '../SqlSafety';
 
 export class MssqlConnector implements IDatabaseConnector {
   private pool: ConnectionPool | null = null;
@@ -44,8 +46,10 @@ export class MssqlConnector implements IDatabaseConnector {
 
   async query<T>(sql: string, params?: unknown[]): Promise<T[]> {
     if (!this.pool) {
-      throw new Error('Conexão não estabelecida');
+      throw new DbUtilityError('CONNECTION_FAILED');
     }
+
+    assertSafeSql(sql);
 
     const request = this.pool.request();
 

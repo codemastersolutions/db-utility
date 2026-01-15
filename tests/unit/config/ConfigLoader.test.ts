@@ -1,6 +1,7 @@
 import fs from 'fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfigLoader } from '../../../src/config/ConfigLoader';
+import { DbUtilityError } from '../../../src/errors/DbUtilityError';
 
 vi.mock('fs');
 
@@ -45,8 +46,11 @@ describe('ConfigLoader', () => {
     delete process.env.DB_TYPE;
     vi.spyOn(fs, 'existsSync').mockReturnValue(false);
 
-    await expect(ConfigLoader.load()).rejects.toThrow(
-      'Configuração de banco de dados não encontrada',
-    );
+    try {
+      await ConfigLoader.load();
+    } catch (error) {
+      expect(error).toBeInstanceOf(DbUtilityError);
+      expect((error as DbUtilityError).code).toBe('CONFIG_DB_TYPE_REQUIRED');
+    }
   });
 });

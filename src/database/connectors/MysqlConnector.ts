@@ -1,5 +1,7 @@
 import { createPool, Pool, PoolOptions } from 'mysql2/promise';
+import { DbUtilityError } from '../../errors/DbUtilityError';
 import { DatabaseConfig, IDatabaseConnector } from '../../types/database';
+import { assertSafeSql } from '../SqlSafety';
 
 export class MysqlConnector implements IDatabaseConnector {
   private pool: Pool | null = null;
@@ -43,8 +45,10 @@ export class MysqlConnector implements IDatabaseConnector {
 
   async query<T>(sql: string, params?: unknown[]): Promise<T[]> {
     if (!this.pool) {
-      throw new Error('Conexão não estabelecida');
+      throw new DbUtilityError('CONNECTION_FAILED');
     }
+
+    assertSafeSql(sql);
 
     const [rows] = await this.pool.execute(sql, params as never);
     return rows as T[];
