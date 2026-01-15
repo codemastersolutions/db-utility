@@ -14,7 +14,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "db-utility": "./dist/cli/index.js"
+    "db-utility": "./dist/cli/index.js",
+    "dbutility": "./dist/cli/index.js"
   },
   "scripts": {
     "build": "tsc",
@@ -61,7 +62,9 @@
     "pg": "^8.16.3"
   },
   "devDependencies": {
+    "@types/mssql": "^9.1.8",
     "@types/node": "^25.0.8",
+    "@types/pg": "^8.16.0",
     "@typescript-eslint/eslint-plugin": "^8.53.0",
     "@typescript-eslint/parser": "^8.53.0",
     "@vitest/coverage-v8": "^4.0.17",
