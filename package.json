@@ -24,7 +24,7 @@
     "test:coverage": "vitest run --coverage",
     "lint": "eslint 'src/**/*.ts'",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "pnpm run build"
   },
   "keywords": [
     "database",

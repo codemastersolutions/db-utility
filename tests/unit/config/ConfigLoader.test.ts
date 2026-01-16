@@ -19,12 +19,12 @@ describe('ConfigLoader', () => {
   });
 
   it('deve carregar configuração das variáveis de ambiente', async () => {
-    process.env.DB_TYPE = 'postgres';
-    process.env.DB_HOST = 'localhost';
-    process.env.DB_PORT = '5432';
-    process.env.DB_USER = 'user';
-    process.env.DB_PASSWORD = 'password';
-    process.env.DB_NAME = 'db';
+    process.env.DBUTILITY_DB_TYPE = 'postgres';
+    process.env.DBUTILITY_DB_HOST = 'localhost';
+    process.env.DBUTILITY_DB_PORT = '5432';
+    process.env.DBUTILITY_DB_USER = 'user';
+    process.env.DBUTILITY_DB_PASSWORD = 'password';
+    process.env.DBUTILITY_DB_NAME = 'db';
 
     // Simula que não existem arquivos de config padrão
     vi.spyOn(fs, 'existsSync').mockReturnValue(false);
@@ -43,7 +43,7 @@ describe('ConfigLoader', () => {
   });
 
   it('deve lançar erro se DB_TYPE não estiver definido no ambiente e nenhum arquivo existir', async () => {
-    delete process.env.DB_TYPE;
+    delete process.env.DBUTILITY_DB_TYPE;
     vi.spyOn(fs, 'existsSync').mockReturnValue(false);
 
     try {

@@ -8,10 +8,15 @@ import { ConfigLoader } from '../config/ConfigLoader';
 import { ConnectionFactory } from '../database/ConnectionFactory';
 import { DbUtilitySecurityError } from '../database/SqlSafety';
 import { DbUtilityError } from '../errors/DbUtilityError';
+import { GeneratorWriter } from '../generators/GeneratorWriter';
+import { MongooseGenerator } from '../generators/MongooseGenerator';
+import { PrismaGenerator } from '../generators/PrismaGenerator';
+import { SequelizeGenerator } from '../generators/SequelizeGenerator';
+import { TypeORMGenerator } from '../generators/TypeORMGenerator';
 import { getMessages } from '../i18n/messages';
 import { IntrospectionLogger } from '../introspection/IntrospectionLogger';
 import { IntrospectionService } from '../introspection/IntrospectionService';
-import { DatabaseConfig, DatabaseType } from '../types/database';
+import { DatabaseConfig, DatabaseType, IDatabaseConnector } from '../types/database';
 
 const appConfig = AppConfigLoader.load();
 const messages = getMessages(appConfig.language);
@@ -110,7 +115,25 @@ interface CliOptions {
   password?: string;
   database?: string;
   ssl?: boolean;
+  target?: string;
+  output?: string;
 }
+
+const getGenerator = (target: string) => {
+  switch (target.toLowerCase()) {
+    case 'sequelize':
+      return new SequelizeGenerator();
+    case 'typeorm':
+      return new TypeORMGenerator();
+    case 'prisma':
+      return new PrismaGenerator();
+    case 'mongoose':
+    case 'mongodb':
+      return new MongooseGenerator();
+    default:
+      throw new Error(`Unknown target: ${target}`);
+  }
+};
 
 const getConnectionConfig = async (options: CliOptions): Promise<DatabaseConfig> => {
   const overrides: Partial<DatabaseConfig> = {};
@@ -126,24 +149,40 @@ const getConnectionConfig = async (options: CliOptions): Promise<DatabaseConfig>
   return ConfigLoader.load(options.config, overrides);
 };
 
+const withConnection = async (
+  options: CliOptions,
+  action: (connector: IDatabaseConnector, config: DatabaseConfig) => Promise<void>,
+) => {
+  let connector: IDatabaseConnector | null = null;
+  try {
+    const config = await getConnectionConfig(options);
+    console.log(messages.cli.connecting(config.type));
+    
+    connector = ConnectionFactory.create(config);
+    await connector.connect();
+    
+    await action(connector, config);
+  } catch (error) {
+    handleCliError(error);
+  } finally {
+    if (connector) {
+      try {
+        await connector.disconnect();
+        console.log(messages.cli.connectionClosed);
+      } catch (disconnectError) {
+        // Ignora erros de desconexão se já houve erro principal ou conexão já fechada
+        console.warn('Erro ao fechar conexão:', disconnectError instanceof Error ? disconnectError.message : String(disconnectError));
+      }
+    }
+  }
+};
+
 const connectCommand = program.command('connect').description(messages.cli.connectDescription);
 
 addConnectionOptions(connectCommand).action(async (options: CliOptions) => {
-  try {
-    console.log(messages.cli.loadingConfig);
-    const config = await getConnectionConfig(options);
-
-    console.log(messages.cli.connecting(config.type));
-    const connection = ConnectionFactory.create(config);
-
-    await connection.connect();
+  await withConnection(options, async () => {
     console.log(messages.cli.connectSuccess);
-
-    await connection.disconnect();
-    console.log(messages.cli.connectionClosed);
-  } catch (error) {
-    handleCliError(error);
-  }
+  });
 });
 
 const introspectCommand = program
@@ -151,45 +190,82 @@ const introspectCommand = program
   .description(messages.cli.introspectDescription);
 
 addConnectionOptions(introspectCommand).action(async (options: CliOptions) => {
-  try {
-    const config = await getConnectionConfig(options);
+  await withConnection(options, async (connector, config) => {
     console.log(messages.cli.introspectConnecting(config.database));
 
-    const service = new IntrospectionService(config);
+    const service = new IntrospectionService(connector, config);
     const schema = await service.introspect();
 
     const runDir = IntrospectionLogger.logSchema(config, schema, process.cwd(), appConfig);
 
     console.log(messages.cli.introspectDone(schema.tables.length));
     console.log(messages.cli.introspectSavedAt(runDir));
-  } catch (error) {
-    handleCliError(error);
-  }
+  });
 });
 
 const exportCommand = program.command('export').description(messages.cli.exportDescription);
 
-addConnectionOptions(exportCommand).action(async (options: CliOptions) => {
-  try {
-    const config = await getConnectionConfig(options);
-    console.log(messages.cli.introspectConnecting(config.database));
-    console.log(messages.cli.exportDevMessage);
-  } catch (error) {
-    handleCliError(error);
-  }
-});
+addConnectionOptions(exportCommand)
+  .option('--target <target>', 'Target ORM: sequelize, typeorm, prisma, mongoose')
+  .option('--output <dir>', 'Output directory')
+  .action(async (options: CliOptions) => {
+    if (!options.target) {
+      handleCliError(new Error('Target is required (--target <target>)'));
+      return;
+    }
+
+    await withConnection(options, async (connector, config) => {
+      console.log(messages.cli.introspectConnecting(config.database));
+
+      const service = new IntrospectionService(connector, config);
+      const schema = await service.introspect();
+
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const generator = getGenerator(options.target!);
+      console.log(`Generating models for ${options.target}...`);
+
+      const files = await generator.generate(schema);
+      const outputDir = options.output || join(process.cwd(), 'generated-models');
+
+      GeneratorWriter.write(files, outputDir);
+      console.log(`Successfully generated ${files.length} files in ${outputDir}`);
+    });
+  });
 
 const migrateCommand = program.command('migrate').description(messages.cli.migrateDescription);
 
-addConnectionOptions(migrateCommand).action(async (options) => {
-  try {
-    const config = await getConnectionConfig(options);
-    console.log(messages.cli.introspectConnecting(config.database));
-    console.log(messages.cli.migrateDevMessage);
-  } catch (error) {
-    handleCliError(error);
-  }
-});
+addConnectionOptions(migrateCommand)
+  .option('--target <target>', 'Target ORM: sequelize, typeorm')
+  .option('--output <dir>', 'Output directory')
+  .action(async (options) => {
+    if (!options.target) {
+      handleCliError(new Error('Target is required (--target <target>)'));
+      return;
+    }
+
+    await withConnection(options, async (connector, config) => {
+      console.log(messages.cli.introspectConnecting(config.database));
+
+      const service = new IntrospectionService(connector, config);
+      const schema = await service.introspect();
+
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const generator = getGenerator(options.target!);
+      if (!('generateMigrations' in generator)) {
+        throw new Error(`Target ${options.target} does not support migration generation`);
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const migrationGenerator = generator as any;
+
+      console.log(`Generating migrations for ${options.target}...`);
+      const files = await migrationGenerator.generateMigrations(schema);
+
+      const outputDir = options.output || join(process.cwd(), 'generated-migrations');
+      GeneratorWriter.write(files, outputDir);
+      console.log(`Successfully generated ${files.length} migration files in ${outputDir}`);
+    });
+  });
 
 program.parse(process.argv);
 

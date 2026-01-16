@@ -1,35 +1,28 @@
-import { ConnectionFactory } from '../database/ConnectionFactory';
+import { DbUtilityError } from '../errors/DbUtilityError';
 import { DatabaseConfig, IDatabaseConnector } from '../types/database';
 import { DatabaseSchema } from '../types/introspection';
-import { DbUtilityError } from '../errors/DbUtilityError';
 import { IDatabaseIntrospector } from './Introspector';
-import { PostgresIntrospector } from './PostgresIntrospector';
-import { MysqlIntrospector } from './MysqlIntrospector';
 import { MssqlIntrospector } from './MssqlIntrospector';
+import { MysqlIntrospector } from './MysqlIntrospector';
+import { PostgresIntrospector } from './PostgresIntrospector';
 
 export class IntrospectionService {
   private connector: IDatabaseConnector;
   private config: DatabaseConfig;
 
-  constructor(config: DatabaseConfig) {
+  constructor(connector: IDatabaseConnector, config: DatabaseConfig) {
     if (!config.type) {
       throw new DbUtilityError('INTROSPECTION_DB_TYPE_REQUIRED');
     }
 
     this.config = config;
-    this.connector = ConnectionFactory.create(config);
+    this.connector = connector;
   }
 
   async introspect(): Promise<DatabaseSchema> {
-    await this.connector.connect();
-
-    try {
-      const introspector = this.createIntrospector();
-      const schema = await introspector.introspectSchema();
-      return schema;
-    } finally {
-      await this.connector.disconnect();
-    }
+    const introspector = this.createIntrospector();
+    const schema = await introspector.introspectSchema();
+    return schema;
   }
 
   private createIntrospector(): IDatabaseIntrospector {

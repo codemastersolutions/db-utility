@@ -82,18 +82,36 @@ export class ConfigLoader {
   }
 
   private static loadFromEnv(): DatabaseConfig {
-    if (!process.env.DB_TYPE) {
+    const dbType = process.env.DBUTILITY_DB_TYPE || process.env.DB_TYPE;
+
+    if (!dbType) {
       throw new DbUtilityError('CONFIG_DB_TYPE_REQUIRED');
     }
 
+    const host = process.env.DBUTILITY_DB_HOST || process.env.DB_HOST;
+    const portStr = process.env.DBUTILITY_DB_PORT || process.env.DB_PORT;
+    const username =
+      process.env.DBUTILITY_DB_USER ||
+      process.env.DBUTILITY_DB_USERNAME ||
+      process.env.DB_USER ||
+      process.env.DB_USERNAME;
+    const password = process.env.DBUTILITY_DB_PASSWORD || process.env.DB_PASSWORD;
+    const database =
+      process.env.DBUTILITY_DB_NAME ||
+      process.env.DBUTILITY_DB_DATABASE ||
+      process.env.DB_NAME ||
+      process.env.DB_DATABASE;
+    const connectionString =
+      process.env.DBUTILITY_DB_CONNECTION_STRING || process.env.DB_CONNECTION_STRING;
+
     return {
-      type: process.env.DB_TYPE as DatabaseType,
-      host: process.env.DB_HOST,
-      port: process.env.DB_PORT ? parseInt(process.env.DB_PORT, 10) : undefined,
-      username: process.env.DB_USER || process.env.DB_USERNAME,
-      password: process.env.DB_PASSWORD,
-      database: process.env.DB_NAME || process.env.DB_DATABASE,
-      connectionString: process.env.DB_CONNECTION_STRING,
+      type: dbType as DatabaseType,
+      host,
+      port: portStr ? parseInt(portStr, 10) : undefined,
+      username,
+      password,
+      database,
+      connectionString,
     };
   }
 }
