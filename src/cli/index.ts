@@ -157,10 +157,10 @@ const withConnection = async (
   try {
     const config = await getConnectionConfig(options);
     console.log(messages.cli.connecting(config.type));
-    
+
     connector = ConnectionFactory.create(config);
     await connector.connect();
-    
+
     await action(connector, config);
   } catch (error) {
     handleCliError(error);
@@ -171,7 +171,10 @@ const withConnection = async (
         console.log(messages.cli.connectionClosed);
       } catch (disconnectError) {
         // Ignora erros de desconexão se já houve erro principal ou conexão já fechada
-        console.warn('Erro ao fechar conexão:', disconnectError instanceof Error ? disconnectError.message : String(disconnectError));
+        console.warn(
+          'Erro ao fechar conexão:',
+          disconnectError instanceof Error ? disconnectError.message : String(disconnectError),
+        );
       }
     }
   }
@@ -220,12 +223,12 @@ addConnectionOptions(exportCommand)
       const service = new IntrospectionService(connector, config);
       const schema = await service.introspect();
 
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const generator = getGenerator(options.target!);
       console.log(`Generating models for ${options.target}...`);
 
       const files = await generator.generate(schema);
-      const outputDir = options.output || join(process.cwd(), 'generated-models');
+      const baseOutputDir = options.output || join(process.cwd(), 'generated-models');
+      const outputDir = join(baseOutputDir, options.target!.toLowerCase());
 
       GeneratorWriter.write(files, outputDir);
       console.log(`Successfully generated ${files.length} files in ${outputDir}`);
@@ -249,7 +252,6 @@ addConnectionOptions(migrateCommand)
       const service = new IntrospectionService(connector, config);
       const schema = await service.introspect();
 
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const generator = getGenerator(options.target!);
       if (!('generateMigrations' in generator)) {
         throw new Error(`Target ${options.target} does not support migration generation`);
@@ -261,7 +263,8 @@ addConnectionOptions(migrateCommand)
       console.log(`Generating migrations for ${options.target}...`);
       const files = await migrationGenerator.generateMigrations(schema);
 
-      const outputDir = options.output || join(process.cwd(), 'generated-migrations');
+      const baseOutputDir = options.output || join(process.cwd(), 'generated-migrations');
+      const outputDir = join(baseOutputDir, options.target!.toLowerCase());
       GeneratorWriter.write(files, outputDir);
       console.log(`Successfully generated ${files.length} migration files in ${outputDir}`);
     });

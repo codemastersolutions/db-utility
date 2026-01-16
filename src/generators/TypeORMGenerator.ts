@@ -1,13 +1,6 @@
-import {
-  ColumnMetadata,
-  DatabaseSchema,
-} from '../types/introspection';
+import { ColumnMetadata, DatabaseSchema } from '../types/introspection';
 import { topologicalSort } from '../utils/topologicalSort';
-import {
-  GeneratedFile,
-  MigrationGenerator,
-  SchemaGenerator,
-} from './GeneratorTypes';
+import { GeneratedFile, MigrationGenerator, SchemaGenerator } from './GeneratorTypes';
 
 export class TypeORMGenerator implements SchemaGenerator, MigrationGenerator {
   async generate(schema: DatabaseSchema): Promise<GeneratedFile[]> {
@@ -54,29 +47,29 @@ ${table.columns.map((c) => this.generateColumnDefinition(c)).join('\n')}
       const content = `import { MigrationInterface, QueryRunner, Table, TableIndex, TableForeignKey } from 'typeorm';
 
 export class ${migrationName} implements MigrationInterface {
-    public async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.createTable(new Table({
-            name: '${table.name}',
-            columns: [
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.createTable(new Table({
+      name: '${table.name}',
+      columns: [
 ${table.columns.map((c) => this.generateMigrationColumn(c)).join(',\n')}
-            ],
-        }), true);
+      ],
+    }), true);
 
-        ${table.indexes
-          .map(
-            (idx) =>
-              `await queryRunner.createIndex('${table.name}', new TableIndex({
-                name: '${idx.name}',
-                columnNames: ['${idx.columns.join("', '")}'],
-                isUnique: ${idx.isUnique}
-            }));`,
-          )
-          .join('\n        ')}
-    }
+${table.indexes
+  .map(
+    (idx) =>
+      `    await queryRunner.createIndex('${table.name}', new TableIndex({
+      name: '${idx.name}',
+      columnNames: ['${idx.columns.join("', '")}'],
+      isUnique: ${idx.isUnique}
+    }));`,
+  )
+  .join('\n')}
+  }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.dropTable('${table.name}');
-    }
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.dropTable('${table.name}');
+  }
 }
 `;
       files.push({
@@ -105,13 +98,13 @@ ${table.columns.map((c) => this.generateMigrationColumn(c)).join(',\n')}
   private generateColumnDefinition(col: ColumnMetadata): string {
     const type = this.mapType(col.dataType);
     const decorator = col.isPrimaryKey ? '@PrimaryColumn' : '@Column';
-    
+
     const options: string[] = [];
     if (type) options.push(`type: '${type}'`);
     if (col.isNullable) options.push('nullable: true');
     if (col.isUnique) options.push('unique: true');
     if (col.hasDefault && col.defaultValue) {
-        options.push(`default: () => "${col.defaultValue.replace(/"/g, '\\"')}"`);
+      options.push(`default: () => "${col.defaultValue.replace(/"/g, '\\"')}"`);
     }
 
     // TypeScript type
@@ -126,21 +119,19 @@ ${table.columns.map((c) => this.generateMigrationColumn(c)).join(',\n')}
 
   private generateMigrationColumn(col: ColumnMetadata): string {
     const type = this.mapType(col.dataType);
-    const parts = [
-      `                name: '${col.name}'`,
-      `                type: '${type}'`,
-    ];
+    const parts = [`      name: '${col.name}'`, `      type: '${type}'`];
 
-    if (col.isPrimaryKey) parts.push('                isPrimary: true');
-    if (col.isAutoIncrement) parts.push('                isGenerated: true', "                generationStrategy: 'increment'");
-    if (col.isNullable) parts.push('                isNullable: true');
-    if (col.isUnique) parts.push('                isUnique: true');
+    if (col.isPrimaryKey) parts.push('      isPrimary: true');
+    if (col.isAutoIncrement)
+      parts.push('      isGenerated: true', "      generationStrategy: 'increment'");
+    if (col.isNullable) parts.push('      isNullable: true');
+    if (col.isUnique) parts.push('      isUnique: true');
     if (col.hasDefault && col.defaultValue) {
-         parts.push(`                default: "${col.defaultValue.replace(/"/g, '\\"')}"`);
+      parts.push(`      default: "${col.defaultValue.replace(/"/g, '\\"')}"`);
     }
 
-    return `                {
+    return `      {
 ${parts.join(',\n')}
-                }`;
+      }`;
   }
 }
