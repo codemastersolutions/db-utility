@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 import { join } from 'path';
 import { readdirSync } from 'fs';
 import { DatabaseConfig } from '../../types/database';
@@ -27,7 +28,7 @@ export class TypeORMRunner implements MigrationRunner {
         }
       }
       DataSourceClass = typeormPkg.DataSource;
-    } catch (e) {
+    } catch {
       throw new Error('TypeORM not found. Please install typeorm in your project to run tests.');
     }
 
@@ -39,7 +40,7 @@ export class TypeORMRunner implements MigrationRunner {
           module: 'commonjs',
         },
       });
-    } catch (e) {
+    } catch {
       console.warn(
         'ts-node not found. If your migrations are in TypeScript, they might fail to load.',
       );

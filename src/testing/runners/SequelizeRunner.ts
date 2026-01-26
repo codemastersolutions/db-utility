@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
+
 import { join } from 'path';
 import { readdirSync } from 'fs';
 import { DatabaseConfig } from '../../types/database';
@@ -29,7 +31,7 @@ export class SequelizeRunner implements MigrationRunner {
         }
       }
       SequelizeClass = sequelizePkg.Sequelize;
-    } catch (e) {
+    } catch {
       throw new Error(
         'Sequelize not found. Please install sequelize in your project to run tests.',
       );

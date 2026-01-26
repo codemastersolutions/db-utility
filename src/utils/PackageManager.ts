@@ -1,6 +1,5 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { join } from 'path';
 
 const execAsync = promisify(exec);
 
@@ -52,6 +51,7 @@ export class PackageManager {
         // Try to require package.json from the package
         const cwd = process.cwd();
         const packagePath = require.resolve(`${packageName}/package.json`, { paths: [cwd] });
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const pkg = require(packagePath);
         return pkg.version;
       } catch {
@@ -162,7 +162,7 @@ export class PackageManager {
       } catch {
         return null;
       }
-    } catch (e) {
+    } catch {
       return null;
     }
   }

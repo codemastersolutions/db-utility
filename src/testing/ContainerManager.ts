@@ -79,10 +79,13 @@ export class ContainerManager {
         : '';
       const { stdout } = await execAsync(`docker exec ${envString} ${containerId} ${command}`);
       return stdout;
-    } catch (error: any) {
-      const stderr = error.stderr ? `\nStderr: ${error.stderr}` : '';
-      const stdout = error.stdout ? `\nStdout: ${error.stdout}` : '';
-      throw new Error(`Failed to execute command in container: ${error.message}${stdout}${stderr}`);
+    } catch (error: unknown) {
+      const execError = error as { stderr?: string; stdout?: string };
+      const stderr = execError.stderr ? `\nStderr: ${execError.stderr}` : '';
+      const stdout = execError.stdout ? `\nStdout: ${execError.stdout}` : '';
+      throw new Error(
+        `Failed to execute command in container: ${error instanceof Error ? error.message : String(error)}${stdout}${stderr}`,
+      );
     }
   }
 }

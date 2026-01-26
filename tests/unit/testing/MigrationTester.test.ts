@@ -190,12 +190,7 @@ describe('MigrationTester', () => {
     });
     expect(fs.chmodSync).toHaveBeenCalledWith(expect.stringContaining('exports'), '777');
 
-    const backupDir = require('path').join(
-      process.cwd(),
-      'exports',
-      'backups',
-      'Postgres 14',
-    );
+    const backupDir = require('path').join(process.cwd(), 'exports', 'backups', 'Postgres 14');
     expect(containerManager.startContainer).toHaveBeenCalledWith(
       expect.stringContaining('postgres:14'),
       expect.any(Object),

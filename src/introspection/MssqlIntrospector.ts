@@ -255,4 +255,3 @@ export class MssqlIntrospector extends BaseIntrospector {
     return this.connector.query<MssqlFkRow>(sql);
   }
 }
-

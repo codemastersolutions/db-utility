@@ -43,5 +43,5 @@ export interface DatabaseSchema {
 export interface TableData {
   tableName: string;
   columns: ColumnMetadata[];
-  rows: Record<string, any>[];
+  rows: Record<string, unknown>[];
 }

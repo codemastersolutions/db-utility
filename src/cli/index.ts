@@ -21,6 +21,7 @@ import { IntrospectionService } from '../introspection/IntrospectionService';
 import { ContainerManager } from '../testing/ContainerManager';
 import { MigrationTester } from '../testing/MigrationTester';
 import { DatabaseConfig, DatabaseType, IDatabaseConnector } from '../types/database';
+import { TableData } from '../types/introspection';
 
 const appConfig = AppConfigLoader.load();
 const messages = getMessages(appConfig.language);
@@ -272,7 +273,7 @@ addConnectionOptions(migrateCommand)
       const generateData = options.onlyData || options.data;
       const generateSchema = !options.onlyData;
 
-      let extractedData: any[] = [];
+      let extractedData: TableData[] = [];
       if (generateData) {
         const tables = options.tables ? options.tables.split(',').map((t) => t.trim()) : [];
         if (tables.length === 0) {

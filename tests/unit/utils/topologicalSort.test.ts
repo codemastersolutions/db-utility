@@ -35,7 +35,7 @@ describe('topologicalSort', () => {
 
     const sorted = topologicalSort(schema);
     const names = sorted.map((t) => t.name);
-    
+
     expect(names.indexOf('A')).toBeLessThan(names.indexOf('B'));
   });
 

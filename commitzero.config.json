@@ -1,0 +1,35 @@
+{
+  "types": [
+    "feat",
+    "fix",
+    "docs",
+    "style",
+    "refactor",
+    "perf",
+    "test",
+    "build",
+    "ci",
+    "chore",
+    "revert"
+  ],
+  "scopes": [],
+  "requireScope": false,
+  "maxSubjectLength": 72,
+  "maxFileSize": "2MB",
+  "allowBreaking": true,
+  "footerKeywords": [
+    "BREAKING CHANGE",
+    "Closes",
+    "Refs"
+  ],
+  "preCommitCommands": [
+    "pnpm test",
+    "pnpm format",
+    "pnpm lint"
+  ],
+  "preCommitTimeout": "3m",
+  "versionCheckEnabled": true,
+  "versionCheckPeriod": "daily",
+  "language": "en",
+  "uiAltScreen": true
+}

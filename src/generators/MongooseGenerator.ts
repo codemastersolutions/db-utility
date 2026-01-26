@@ -1,7 +1,4 @@
-import {
-  ColumnMetadata,
-  DatabaseSchema,
-} from '../types/introspection';
+import { ColumnMetadata, DatabaseSchema } from '../types/introspection';
 import { GeneratedFile, SchemaGenerator } from './GeneratorTypes';
 
 export class MongooseGenerator implements SchemaGenerator {
@@ -50,7 +47,8 @@ export const ${className} = model<I${className}>('${className}', ${className}Sch
 
   private getTsType(dataType: string): string {
     const lower = dataType.toLowerCase();
-    if (lower.includes('int') || lower.includes('float') || lower.includes('decimal')) return 'number';
+    if (lower.includes('int') || lower.includes('float') || lower.includes('decimal'))
+      return 'number';
     if (lower.includes('bool')) return 'boolean';
     if (lower.includes('date') || lower.includes('time')) return 'Date';
     return 'string';
@@ -59,16 +57,17 @@ export const ${className} = model<I${className}>('${className}', ${className}Sch
   private generateFieldDefinition(col: ColumnMetadata): string {
     const type = this.getMongooseType(col.dataType);
     const parts = [`    type: ${type}`];
-    
+
     if (!col.isNullable) parts.push('    required: true');
     // Unique is handled by schema.index to preserve names
     // if (col.isUnique) parts.push('    unique: true');
-    
+
     if (col.hasDefault && col.defaultValue) {
-        // Simple default handling
-        if (!col.defaultValue.includes('(')) { // Avoid function calls like now()
-            parts.push(`    default: ${JSON.stringify(col.defaultValue)}`);
-        }
+      // Simple default handling
+      if (!col.defaultValue.includes('(')) {
+        // Avoid function calls like now()
+        parts.push(`    default: ${JSON.stringify(col.defaultValue)}`);
+      }
     }
 
     return `  ${col.name}: {\n${parts.join(',\n')}\n  }`;
@@ -76,7 +75,8 @@ export const ${className} = model<I${className}>('${className}', ${className}Sch
 
   private getMongooseType(dataType: string): string {
     const lower = dataType.toLowerCase();
-    if (lower.includes('int') || lower.includes('float') || lower.includes('decimal')) return 'Number';
+    if (lower.includes('int') || lower.includes('float') || lower.includes('decimal'))
+      return 'Number';
     if (lower.includes('bool')) return 'Boolean';
     if (lower.includes('date') || lower.includes('time')) return 'Date';
     return 'String';

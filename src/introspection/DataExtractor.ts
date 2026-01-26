@@ -23,7 +23,7 @@ export class DataExtractor {
       const sql = `SELECT * FROM ${quotedName}`;
 
       try {
-        const rows = await this.connector.query<Record<string, any>>(sql, [], {
+        const rows = await this.connector.query<Record<string, unknown>>(sql, [], {
           bypassSafety: true,
         });
         result.push({

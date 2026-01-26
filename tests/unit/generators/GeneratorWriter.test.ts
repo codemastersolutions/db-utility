@@ -14,7 +14,7 @@ describe('GeneratorWriter', () => {
   it('should clean directory if it exists', () => {
     vi.spyOn(fs, 'existsSync').mockReturnValue(true);
     // rmSync might be mocked automatically by vi.mock('fs'), but spyOn ensures we can check it
-    
+
     GeneratorWriter.clean('/tmp/test');
 
     expect(fs.existsSync).toHaveBeenCalledWith('/tmp/test');
@@ -23,7 +23,7 @@ describe('GeneratorWriter', () => {
 
   it('should not clean directory if it does not exist', () => {
     vi.spyOn(fs, 'existsSync').mockReturnValue(false);
-    
+
     GeneratorWriter.clean('/tmp/test');
 
     expect(fs.existsSync).toHaveBeenCalledWith('/tmp/test');
@@ -32,10 +32,8 @@ describe('GeneratorWriter', () => {
 
   it('should write files', () => {
     vi.spyOn(fs, 'existsSync').mockReturnValue(false);
-    
-    const files: GeneratedFile[] = [
-      { fileName: 'test.ts', content: 'content' }
-    ];
+
+    const files: GeneratedFile[] = [{ fileName: 'test.ts', content: 'content' }];
     const outputDir = '/tmp/test';
 
     GeneratorWriter.write(files, outputDir);

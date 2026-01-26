@@ -24,7 +24,12 @@
     "test:coverage": "vitest run --coverage",
     "lint": "eslint 'src/**/*.ts'",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
-    "prepublishOnly": "pnpm run build"
+    "prepublishOnly": "pnpm run build",
+    "commitzero": "commitzero",
+    "commitzero:install": "pnpm exec commitzero install-hooks",
+    "commitzero:uninstall": "pnpm exec commitzero uninstall-hooks",
+    "commit": "pnpm exec commitzero commit --add",
+    "commit:push": "pnpm exec commitzero commit --add --push"
   },
   "keywords": [
     "database",
@@ -62,16 +67,16 @@
   "dependencies": {
     "commander": "^14.0.2",
     "dotenv": "^17.2.3",
+    "inquirer": "^12.0.0",
     "mssql": "^12.2.0",
     "mysql2": "^3.16.0",
-    "pg": "^8.16.3",
-    "inquirer": "^12.0.0"
+    "pg": "^8.16.3"
   },
   "peerDependencies": {
-    "sequelize": "^6.0.0",
-    "typeorm": "^0.3.0",
+    "mongoose": "^8.0.0",
     "prisma": "^6.0.0",
-    "mongoose": "^8.0.0"
+    "sequelize": "^6.0.0",
+    "typeorm": "^0.3.0"
   },
   "peerDependenciesMeta": {
     "sequelize": {
@@ -88,6 +93,8 @@
     }
   },
   "devDependencies": {
+    "@codemastersolutions/commitzero": "^0.0.44",
+    "@eslint/js": "^9.39.2",
     "@types/mssql": "^9.1.8",
     "@types/node": "^25.0.8",
     "@types/pg": "^8.16.0",

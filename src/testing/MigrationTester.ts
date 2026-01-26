@@ -433,7 +433,7 @@ export class MigrationTester {
         await connector.disconnect();
         console.log('Database is ready.');
         return;
-      } catch (e) {
+      } catch {
         await new Promise((r) => setTimeout(r, 2000)); // Wait 2s
       }
     }
