@@ -54,6 +54,11 @@
   "engines": {
     "node": ">=18.0.0"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  },
   "dependencies": {
     "commander": "^14.0.2",
     "dotenv": "^17.2.3",
