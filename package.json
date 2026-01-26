@@ -1,0 +1,98 @@
+{
+  "name": "@codemastersolutions/db-utility",
+  "version": "0.0.1",
+  "description": "Database utility for migrations, seeders, factories, introspection and more...",
+  "files": [
+    "dist",
+    "README.md",
+    "README.pt-BR.md",
+    "README.es.md",
+    "LICENSE",
+    "LICENSE.pt-BR",
+    "LICENSE.es"
+  ],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "db-utility": "./dist/cli/index.js",
+    "dbutility": "./dist/cli/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint 'src/**/*.ts'",
+    "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
+    "prepublishOnly": "pnpm run build"
+  },
+  "keywords": [
+    "database",
+    "utility",
+    "mssql",
+    "mysql",
+    "postgres",
+    "introspection",
+    "migration",
+    "sequelize",
+    "typeorm",
+    "prisma"
+  ],
+  "author": "CodeMaster Soluções",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/codemastersolutions/db-utility.git"
+  },
+  "bugs": {
+    "url": "https://github.com/codemastersolutions/db-utility/issues"
+  },
+  "homepage": "https://github.com/codemastersolutions/db-utility#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "commander": "^14.0.2",
+    "dotenv": "^17.2.3",
+    "mssql": "^12.2.0",
+    "mysql2": "^3.16.0",
+    "pg": "^8.16.3",
+    "inquirer": "^12.0.0"
+  },
+  "peerDependencies": {
+    "sequelize": "^6.0.0",
+    "typeorm": "^0.3.0",
+    "prisma": "^6.0.0",
+    "mongoose": "^8.0.0"
+  },
+  "peerDependenciesMeta": {
+    "sequelize": {
+      "optional": true
+    },
+    "typeorm": {
+      "optional": true
+    },
+    "prisma": {
+      "optional": true
+    },
+    "mongoose": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/mssql": "^9.1.8",
+    "@types/node": "^25.0.8",
+    "@types/pg": "^8.16.0",
+    "@typescript-eslint/eslint-plugin": "^8.53.0",
+    "@typescript-eslint/parser": "^8.53.0",
+    "@vitest/coverage-v8": "^4.0.17",
+    "eslint": "^9.39.2",
+    "globals": "^17.0.0",
+    "prettier": "^3.7.4",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.17"
+  }
+}
