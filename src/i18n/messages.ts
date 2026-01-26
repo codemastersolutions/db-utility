@@ -50,7 +50,8 @@ export interface Messages {
 
 const ptBrMessages: Messages = {
   cli: {
-    appDescription: 'O mais poderoso utilitário de banco de dados.',
+    appDescription:
+      'Utilitário de banco de dados para migrations, seeders, factories, introspecção e muito mais...',
     connectDescription: 'Conectar ao banco de dados',
     introspectDescription: 'Realizar introspecção no banco de dados',
     exportDescription: 'Exportar models (Sequelize, TypeORM, Prisma)',
@@ -107,7 +108,8 @@ const ptBrMessages: Messages = {
 
 const enMessages: Messages = {
   cli: {
-    appDescription: 'The most powerful database utility.',
+    appDescription:
+      'Database utility for migrations, seeders, factories, introspection and more...',
     connectDescription: 'Connect to the database',
     introspectDescription: 'Run database introspection',
     exportDescription: 'Export models (Sequelize, TypeORM, Prisma)',
@@ -159,7 +161,8 @@ const enMessages: Messages = {
 
 const esMessages: Messages = {
   cli: {
-    appDescription: 'La utilidad de base de datos más poderosa.',
+    appDescription:
+      'Utilidad de base de datos para migraciones, seeders, factories, introspección y más...',
     connectDescription: 'Conectar a la base de datos',
     introspectDescription: 'Realizar introspección en la base de datos',
     exportDescription: 'Exportar modelos (Sequelize, TypeORM, Prisma)',
