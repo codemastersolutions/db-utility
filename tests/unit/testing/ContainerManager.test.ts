@@ -38,7 +38,7 @@ describe('ContainerManager', () => {
 
     expect(id).toBe('container123');
     expect(exec).toHaveBeenCalledWith(
-      expect.stringContaining('docker run -d --rm -p 5432:5432 -e FOO=bar postgres:14'),
+      expect.stringContaining("docker run -d --rm -p 5432:5432 -e FOO='bar' postgres:14"),
       expect.any(Function),
     );
   });
