@@ -11,58 +11,68 @@ export class ConfigLoader {
     configPath?: string,
     overrides?: Partial<DatabaseConfig>,
   ): Promise<DatabaseConfig> {
-    let config: DatabaseConfig;
+    // 1. Carregar do ENV (base)
+    const envConfig = this.loadFromEnvRaw();
 
-    if (configPath) {
-      config = await this.loadFromFile(configPath);
-    } else {
-      // Tenta encontrar arquivos de configuração padrão
-      const defaultFiles = ['db-utility.config.js', 'db-utility.config.json', '.db-utilityrc'];
-      let found = false;
+    // 2. Carregar do Arquivo
+    let fileConfig: Partial<DatabaseConfig> = {};
 
-      // Inicializa config temporária para evitar erro de 'used before assigned'
-      // Se não encontrar arquivo, será sobrescrita pelo loadFromEnv
-      config = {} as DatabaseConfig;
+    // Lista de arquivos a procurar, priorizando o novo padrão
+    const defaultFiles = ['dbutility.config.json', 'db-utility.config.json', '.db-utilityrc'];
 
+    let path = configPath;
+    if (!path) {
       for (const file of defaultFiles) {
-        const path = resolve(process.cwd(), file);
-        if (existsSync(path)) {
-          config = await this.loadFromFile(path);
-          found = true;
+        const p = resolve(process.cwd(), file);
+        if (existsSync(p)) {
+          path = p;
           break;
         }
       }
+    }
 
-      if (!found) {
-        // Se não encontrar arquivo, tenta carregar do ambiente
-        // Mas apenas se não houver overrides suficientes para formar uma conexão
-        // Se o usuário passou todos os parâmetros via flag, não precisamos do .env obrigatoriamente
-        try {
-          config = this.loadFromEnv();
-        } catch (error) {
-          // Se falhar ao carregar do env, verificamos se temos overrides suficientes depois
-          // Por enquanto, deixamos vazio e validamos no final
-          if (!overrides || Object.keys(overrides).length === 0) {
-            throw error;
-          }
+    if (path) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rawFile: any = await this.loadFromFileRaw(path);
+
+      // Verifica se tem a propriedade 'connection' (novo formato) ou se é o formato antigo
+      if (rawFile && typeof rawFile === 'object') {
+        if ('connection' in rawFile && typeof rawFile.connection === 'object') {
+          fileConfig = rawFile.connection;
+        } else if ('type' in rawFile || 'connectionString' in rawFile) {
+          // Assume formato antigo (flat) se tiver propriedades chave
+          fileConfig = rawFile as Partial<DatabaseConfig>;
         }
       }
     }
 
-    // Aplica overrides
-    if (overrides) {
-      config = { ...config, ...overrides };
-    }
+    // 3. Mesclar: Overrides > File > Env
+    const merge = <K extends keyof DatabaseConfig>(key: K): DatabaseConfig[K] => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const val = overrides?.[key] ?? fileConfig[key] ?? envConfig[key];
+      return val as DatabaseConfig[K];
+    };
 
-    // Validação básica
-    if (!config.type && !config.connectionString) {
+    const finalConfig: DatabaseConfig = {
+      type: merge('type') as DatabaseType,
+      host: merge('host'),
+      port: merge('port'),
+      username: merge('username'),
+      password: merge('password'),
+      database: merge('database'),
+      ssl: merge('ssl'),
+      connectionString: merge('connectionString'),
+    };
+
+    // Validação final
+    if (!finalConfig.type && !finalConfig.connectionString) {
       throw new DbUtilityError('CONFIG_DB_TYPE_OR_CONNECTION_STRING_REQUIRED');
     }
 
-    return config;
+    return finalConfig;
   }
 
-  private static async loadFromFile(path: string): Promise<DatabaseConfig> {
+  private static async loadFromFileRaw(path: string): Promise<unknown> {
     const absolutePath = resolve(process.cwd(), path);
     if (!existsSync(absolutePath)) {
       throw new DbUtilityError('CONFIG_FILE_NOT_FOUND', absolutePath);
@@ -71,7 +81,7 @@ export class ConfigLoader {
     const ext = extname(absolutePath);
     if (ext === '.json' || ext === '') {
       const content = readFileSync(absolutePath, 'utf-8');
-      return JSON.parse(content) as DatabaseConfig;
+      return JSON.parse(content);
     } else if (ext === '.js') {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const config = require(absolutePath);
@@ -81,12 +91,8 @@ export class ConfigLoader {
     throw new DbUtilityError('CONFIG_FILE_FORMAT_UNSUPPORTED', ext);
   }
 
-  private static loadFromEnv(): DatabaseConfig {
+  private static loadFromEnvRaw(): Partial<DatabaseConfig> {
     const dbType = process.env.DBUTILITY_DB_TYPE || process.env.DB_TYPE;
-
-    if (!dbType) {
-      throw new DbUtilityError('CONFIG_DB_TYPE_REQUIRED');
-    }
 
     const host = process.env.DBUTILITY_DB_HOST || process.env.DB_HOST;
     const portStr = process.env.DBUTILITY_DB_PORT || process.env.DB_PORT;

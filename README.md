@@ -45,7 +45,7 @@ dbutility --init --force
 
 ### Configuration File (dbutility.config.json)
 
-The configuration file allows you to define CLI language, output directories, and naming patterns.
+The configuration file allows you to define CLI language, output directories, naming patterns, and database connection settings.
 
 ```json
 {
@@ -56,13 +56,32 @@ The configuration file allows you to define CLI language, output directories, an
   "migrations": {
     "outputDir": "db-utility-migrations",
     "fileNamePattern": "timestamp-prefix"
+  },
+  "connection": {
+    "type": "postgres",
+    "host": "localhost",
+    "port": 5432,
+    "username": "myuser",
+    "password": "mypassword",
+    "database": "mydb",
+    "ssl": false
   }
 }
 ```
 
+### Configuration Priority
+
+The configuration is loaded with the following priority order (higher priority overrides lower):
+
+1. **CLI Flags**: Arguments passed directly to the command (e.g., `-u user`).
+2. **Configuration File**: Settings in `dbutility.config.json`.
+3. **Environment Variables**: Variables defined in `.env`.
+
+This allows you to have base settings in `.env`, project-specific settings in `dbutility.config.json`, and override specific values (like password) via CLI when needed.
+
 ### Environment Variables (.env)
 
-You can also configure DbUtility using environment variables. JSON file configurations take precedence over environment variables if both are present.
+You can also configure DbUtility using environment variables.
 
 ```env
 # Language (pt-BR, en, es)
@@ -74,6 +93,14 @@ DB_UTILITY_MIGRATIONS_OUTPUT_DIR=my-migrations-dir
 
 # Migration File Name Pattern (timestamp-prefix, prefix-timestamp)
 DB_UTILITY_MIGRATIONS_FILE_NAME_PATTERN=prefix-timestamp
+
+# Database Connection (Fallback/Base)
+DB_TYPE=postgres
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=myuser
+DB_PASSWORD=mypassword
+DB_NAME=mydb
 ```
 
 ## CLI - Command Line Interface

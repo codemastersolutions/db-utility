@@ -45,7 +45,7 @@ dbutility --init --force
 
 ### Archivo de Configuración (dbutility.config.json)
 
-El archivo de configuración permite definir el idioma de la CLI, directorios de salida y patrones de nombres.
+El archivo de configuración permite definir el idioma de la CLI, directorios de salida, patrones de nombres y configuraciones de conexión a la base de datos.
 
 ```json
 {
@@ -56,13 +56,32 @@ El archivo de configuración permite definir el idioma de la CLI, directorios de
   "migrations": {
     "outputDir": "db-utility-migrations",
     "fileNamePattern": "timestamp-prefix"
+  },
+  "connection": {
+    "type": "postgres",
+    "host": "localhost",
+    "port": 5432,
+    "username": "usuario",
+    "password": "password",
+    "database": "mibasedatos",
+    "ssl": false
   }
 }
 ```
 
+### Prioridad de Configuración
+
+La configuración se carga con el siguiente orden de prioridad (la prioridad más alta sobrescribe la más baja):
+
+1. **Flags de la CLI**: Argumentos pasados directamente al comando (ej: `-u usuario`).
+2. **Archivo de Configuración**: Configuraciones en `dbutility.config.json`.
+3. **Variables de Entorno**: Variables definidas en `.env`.
+
+Esto permite tener configuraciones base en `.env`, configuraciones específicas del proyecto en `dbutility.config.json` y sobrescribir valores específicos (como la contraseña) a través de la CLI cuando sea necesario.
+
 ### Variables de Entorno (.env)
 
-También puede configurar DbUtility utilizando variables de entorno. Las configuraciones en el archivo JSON tienen prioridad sobre las variables de entorno si ambos están presentes.
+También puede configurar DbUtility utilizando variables de entorno.
 
 ```env
 # Idioma (pt-BR, en, es)
@@ -74,6 +93,14 @@ DB_UTILITY_MIGRATIONS_OUTPUT_DIR=mi-directorio-migrations
 
 # Patrón de Nombre de Archivo de Migración (timestamp-prefix, prefix-timestamp)
 DB_UTILITY_MIGRATIONS_FILE_NAME_PATTERN=prefix-timestamp
+
+# Conexión a Base de Datos (Fallback/Base)
+DB_TYPE=postgres
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=usuario
+DB_PASSWORD=password
+DB_NAME=mibasedatos
 ```
 
 ## CLI - Interfaz de Línea de Comandos

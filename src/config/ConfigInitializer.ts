@@ -1,6 +1,7 @@
 import { existsSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { AppLanguage } from './AppConfig';
+import { DatabaseConfig } from '../types/database';
 
 interface InitResult {
   created: boolean;
@@ -17,6 +18,7 @@ interface InitialFileConfig {
     outputDir: string;
     fileNamePattern: 'timestamp-prefix' | 'prefix-timestamp';
   };
+  connection?: Partial<DatabaseConfig>;
 }
 
 const defaultConfig: InitialFileConfig = {
@@ -27,6 +29,15 @@ const defaultConfig: InitialFileConfig = {
   migrations: {
     outputDir: 'db-utility-migrations',
     fileNamePattern: 'timestamp-prefix',
+  },
+  connection: {
+    type: 'mysql',
+    host: 'localhost',
+    port: 3306,
+    username: 'root',
+    password: 'password',
+    database: 'database_name',
+    ssl: false,
   },
 };
 

@@ -45,7 +45,7 @@ dbutility --init --force
 
 ### Arquivo de Configuração (dbutility.config.json)
 
-O arquivo de configuração permite definir o idioma da CLI, diretórios de saída e padrões de nomenclatura.
+O arquivo de configuração permite definir o idioma da CLI, diretórios de saída, padrões de nomenclatura e configurações de conexão com o banco de dados.
 
 ```json
 {
@@ -56,13 +56,32 @@ O arquivo de configuração permite definir o idioma da CLI, diretórios de saí
   "migrations": {
     "outputDir": "db-utility-migrations",
     "fileNamePattern": "timestamp-prefix"
+  },
+  "connection": {
+    "type": "postgres",
+    "host": "localhost",
+    "port": 5432,
+    "username": "usuario",
+    "password": "senha",
+    "database": "meubanco",
+    "ssl": false
   }
 }
 ```
 
+### Prioridade de Configuração
+
+A configuração é carregada com a seguinte ordem de prioridade (prioridade mais alta sobrescreve a mais baixa):
+
+1. **Flags da CLI**: Argumentos passados diretamente para o comando (ex: `-u usuario`).
+2. **Arquivo de Configuração**: Configurações no `dbutility.config.json`.
+3. **Variáveis de Ambiente**: Variáveis definidas no `.env`.
+
+Isso permite ter configurações base no `.env`, configurações específicas do projeto no `dbutility.config.json` e sobrescrever valores específicos (como senha) via CLI quando necessário.
+
 ### Variáveis de Ambiente (.env)
 
-Você também pode configurar o DbUtility usando variáveis de ambiente. As configurações no arquivo JSON têm prioridade sobre as variáveis de ambiente se ambos estiverem presentes.
+Você também pode configurar o DbUtility usando variáveis de ambiente.
 
 ```env
 # Idioma (pt-BR, en, es)
@@ -74,6 +93,14 @@ DB_UTILITY_MIGRATIONS_OUTPUT_DIR=meu-diretorio-migrations
 
 # Padrão de Nome de Arquivo de Migration (timestamp-prefix, prefix-timestamp)
 DB_UTILITY_MIGRATIONS_FILE_NAME_PATTERN=prefix-timestamp
+
+# Conexão com Banco de Dados (Fallback/Base)
+DB_TYPE=postgres
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=usuario
+DB_PASSWORD=senha
+DB_NAME=meubanco
 ```
 
 ## CLI - Interface de Linha de Comando

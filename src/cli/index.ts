@@ -45,7 +45,10 @@ program
 
 program
   .option('--init', messages.cli.initOptionDescription)
-  .option('-f, --force', messages.cli.forceOptionDescription);
+  .option('-f, --force', messages.cli.forceOptionDescription)
+  .action(() => {
+    // No-op action to prevent help display when only options are passed
+  });
 
 const handleCliError = (error: unknown) => {
   if (error instanceof DbUtilitySecurityError) {
