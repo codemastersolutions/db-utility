@@ -25,6 +25,8 @@ import { DatabaseConfig, DatabaseType, IDatabaseConnector } from '../types/datab
 const appConfig = AppConfigLoader.load();
 const messages = getMessages(appConfig.language);
 
+import { resolveMigrationOutputDir } from './helpers';
+
 const getPackageVersion = (): string => {
   try {
     const packageJsonPath = join(__dirname, '../../package.json');
@@ -245,7 +247,7 @@ addConnectionOptions(exportCommand)
     });
   });
 
-const migrateCommand = program.command('migrate').description(messages.cli.migrateDescription);
+const migrateCommand = program.command('migrations').description(messages.cli.migrateDescription);
 
 addConnectionOptions(migrateCommand)
   .option('--target <target>', 'Target ORM: sequelize, typeorm')
@@ -298,8 +300,9 @@ addConnectionOptions(migrateCommand)
         timestamp: new Date().toISOString(),
       };
 
-      const baseOutputDir =
-        options.output || join(process.cwd(), 'exports', 'generated-migrations');
+      // Priority: Flag > Config > Default
+      const baseOutputDir = resolveMigrationOutputDir(process.cwd(), options.output, appConfig);
+
       const outputDir = join(baseOutputDir, options.target!.toLowerCase());
 
       if (generateSchema) {

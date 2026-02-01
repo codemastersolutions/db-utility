@@ -103,77 +103,93 @@ DB_PASSWORD=senha
 DB_NAME=meubanco
 ```
 
-## CLI - Interface de Linha de Comando
+## Comandos e Flags da CLI
 
 > **Nota de Segurança**: Recomendamos fortemente o uso de um usuário de banco de dados com permissões de **somente leitura** (SELECT) para realizar operações de introspecção e exportação. Isso minimiza riscos de alterações acidentais nos dados. A biblioteca DbUtility executa apenas consultas de metadados (estrutura do banco) e bloqueia comandos que possam alterar dados ou ler registros das tabelas de negócio.
 
-O DbUtility oferece uma CLI robusta para interagir com seus bancos de dados.
+### Opções Globais
 
-### Conectar ao Banco de Dados
+| Flag | Descrição |
+|------|-----------|
+| `--init` | Inicializa o arquivo de configuração |
+| `-f, --force` | Força a recriação do arquivo de configuração se já existir |
+| `-v, --version` | Exibe o número da versão |
+| `-h, --help` | Exibe ajuda para o comando |
 
-Teste a conexão com seu banco de dados.
+### Opções de Conexão (Disponíveis para `connect`, `introspect`, `export`, `migrate`)
 
-```bash
-dbutility connect -t postgres -H localhost -P 5432 -u usuario -p senha -d banco_dados --ssl
-```
+| Flag | Descrição |
+|------|-----------|
+| `-c, --config <path>` | Caminho para o arquivo de configuração |
+| `-t, --type <type>` | Tipo de banco de dados (`mysql`, `postgres`, `mssql`) |
+| `-H, --host <host>` | Host do banco de dados |
+| `-P, --port <port>` | Porta do banco de dados |
+| `-u, --username <username>` | Usuário do banco de dados |
+| `-p, --password <password>` | Senha do banco de dados |
+| `-d, --database <database>` | Nome do banco de dados |
+| `--ssl` | Habilita conexão SSL |
 
-### Realizar Introspecção
+### Comandos
 
-Analise o esquema do banco de dados e gere relatórios de introspecção.
+#### `connect`
 
-```bash
-dbutility introspect -t mysql -H localhost -P 3306 -u usuario -p senha -d banco_dados
-```
-
-### Exportar Models
-
-Exporte a estrutura do banco de dados para models de ORM.
-
-```bash
-dbutility export --target sequelize --output ./src/models -t postgres ...
-```
-
-### Gerar Migrations
-
-Gere migrations a partir da estrutura existente do banco de dados. Este comando limpa o diretório de saída antes de gerar novos arquivos.
+Testa a conexão com o banco de dados.
 
 ```bash
-dbutility migrate --target sequelize --output ./migrations -t postgres ...
+dbutility connect [opções-conexão]
 ```
 
-Opções:
-- `--data`: Gera migrations de dados (seeds) para as tabelas especificadas.
-- `--only-data`: Gera APENAS migrations de dados (seeds).
-- `--tables <tables>`: Lista de tabelas separadas por vírgula para exportar dados.
+#### `introspect`
 
-Ao usar `--data`, os arquivos de seed são gerados imediatamente após a migration de criação da tabela correspondente.
-
-### Testar Migrations
-
-Teste as migrations geradas usando containers Docker.
+Faz introspecção no esquema do banco de dados.
 
 ```bash
-dbutility test --target sequelize --dir ./migrations/sequelize --engines postgres:14
+dbutility introspect [opções-conexão]
 ```
 
-Opções:
-- `--target <target>`: ORM alvo (sequelize, typeorm).
-- `--dir <dir>`: Diretório contendo as migrations (opcional).
-- `--engines <engines>`: Lista separada por vírgula de engines de banco de dados para testar (ex: postgres:14, mysql:8). Se omitido, tenta ler `database-info.json` gerado pelo comando migrate.
+#### `export`
 
-Requisitos:
-- Docker deve estar instalado e em execução.
+Exporta modelos para o ORM alvo.
 
-### Opções da CLI
+```bash
+dbutility export --target <orm> [opções] [opções-conexão]
+```
 
-- `-t, --type <type>`: Tipo de banco de dados (postgres, mysql, mssql)
-- `-H, --host <host>`: Host do banco de dados
-- `-P, --port <port>`: Porta do banco de dados
-- `-u, --username <username>`: Usuário do banco de dados
-- `-p, --password <password>`: Senha do banco de dados
-- `-d, --database <database>`: Nome do banco de dados
-- `--ssl`: Habilitar SSL (opcional)
-- `-c, --config <path>`: Caminho para um arquivo de configuração específico
+| Flag | Descrição | Obrigatório |
+|------|-----------|-------------|
+| `--target <target>` | ORM alvo (`sequelize`, `typeorm`, `prisma`, `mongoose`) | Sim |
+| `--output <dir>` | Diretório de saída | Não |
+
+#### `migrations`
+
+Gera migrações a partir do esquema do banco de dados.
+
+```bash
+dbutility migrations --target <orm> [opções] [opções-conexão]
+```
+
+| Flag | Descrição | Obrigatório |
+|------|-----------|-------------|
+| `--target <target>` | ORM alvo (`sequelize`, `typeorm`) | Sim |
+| `--output <dir>` | Diretório de saída | Não |
+| `--data` | Gera migração de dados (seeds) junto com o esquema | Não |
+| `--only-data` | Gera APENAS migração de dados | Não |
+| `--tables <tables>` | Lista de tabelas separadas por vírgula para exportação de dados | Sim (se `--data` ou `--only-data`) |
+
+#### `test`
+
+Testa migrações geradas em containers Docker.
+
+```bash
+dbutility test --target <orm> [opções]
+```
+
+| Flag | Descrição | Obrigatório |
+|------|-----------|-------------|
+| `--target <target>` | ORM alvo (`sequelize`, `typeorm`) | Sim |
+| `--dir <dir>` | Diretório contendo as migrações | Não |
+| `--engines <engines>` | Imagens Docker para testar (ex: `postgres:14,mysql:8`) | Não |
+| `--backup` | Exporta backup do banco de dados do container após o teste | Não |
 
 ## Licença
 

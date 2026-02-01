@@ -103,77 +103,93 @@ DB_PASSWORD=password
 DB_NAME=mibasedatos
 ```
 
-## CLI - Interfaz de Línea de Comandos
+## Comandos y Flags de la CLI
 
 > **Nota de Seguridad**: Recomendamos encarecidamente utilizar un usuario de base de datos con permisos de **solo lectura** (SELECT) para realizar operaciones de introspección y exportación. Esto minimiza el riesgo de modificaciones accidentales de datos. La biblioteca DbUtility solo ejecuta consultas de metadatos (estructura de la base de datos) y bloquea comandos que puedan modificar datos o leer filas de tablas de negocio.
 
-DbUtility ofrece una CLI robusta para interactuar con sus bases de datos.
+### Opciones Globales
 
-### Conectar a la Base de Datos
+| Flag | Descripción |
+|------|-------------|
+| `--init` | Inicializa el archivo de configuración |
+| `-f, --force` | Fuerza la recreación del archivo de configuración si ya existe |
+| `-v, --version` | Muestra el número de la versión |
+| `-h, --help` | Muestra ayuda para el comando |
 
-Pruebe la conexión a su base de datos.
+### Opciones de Conexión (Disponibles para `connect`, `introspect`, `export`, `migrate`)
 
-```bash
-dbutility connect -t postgres -H localhost -P 5432 -u usuario -p contraseña -d nombre_base_datos --ssl
-```
+| Flag | Descripción |
+|------|-------------|
+| `-c, --config <path>` | Ruta al archivo de configuración |
+| `-t, --type <type>` | Tipo de base de datos (`mysql`, `postgres`, `mssql`) |
+| `-H, --host <host>` | Host de la base de datos |
+| `-P, --port <port>` | Puerto de la base de datos |
+| `-u, --username <username>` | Usuario de la base de datos |
+| `-p, --password <password>` | Contraseña de la base de datos |
+| `-d, --database <database>` | Nombre de la base de datos |
+| `--ssl` | Habilita conexión SSL |
 
-### Realizar Introspección
+### Comandos
 
-Analice el esquema de la base de datos y genere informes de introspección.
+#### `connect`
 
-```bash
-dbutility introspect -t mysql -H localhost -P 3306 -u usuario -p contraseña -d nombre_base_datos
-```
-
-### Exportar Modelos
-
-Exporte la estructura de la base de datos a modelos ORM.
-
-```bash
-dbutility export --target sequelize --output ./src/models -t postgres ...
-```
-
-### Generar Migraciones
-
-Genere migraciones a partir de la estructura existente de la base de datos. Este comando limpia el directorio de salida antes de generar nuevos archivos.
+Prueba la conexión con la base de datos.
 
 ```bash
-dbutility migrate --target sequelize --output ./migrations -t postgres ...
+dbutility connect [opciones-conexión]
 ```
 
-Opciones:
-- `--data`: Genera migraciones de datos (seeds) para las tablas especificadas.
-- `--only-data`: Genera SOLO migraciones de datos (seeds).
-- `--tables <tables>`: Lista de tablas separadas por comas para exportar datos.
+#### `introspect`
 
-Al usar `--data`, los archivos de seed se generan inmediatamente después de la migración de creación de la tabla correspondiente.
-
-### Probar Migraciones
-
-Pruebe las migraciones generadas utilizando contenedores Docker.
+Realiza introspección en el esquema de la base de datos.
 
 ```bash
-dbutility test --target sequelize --dir ./migrations/sequelize --engines postgres:14
+dbutility introspect [opciones-conexión]
 ```
 
-Opciones:
-- `--target <target>`: ORM objetivo (sequelize, typeorm).
-- `--dir <dir>`: Directorio que contiene las migraciones (opcional).
-- `--engines <engines>`: Lista separada por comas de motores de base de datos para probar (ej: postgres:14, mysql:8). Si se omite, intenta leer `database-info.json` generado por el comando migrate.
+#### `export`
 
-Requisitos:
-- Docker debe estar instalado y en ejecución.
+Exporta modelos para el ORM objetivo.
 
-### Opciones de la CLI
+```bash
+dbutility export --target <orm> [opciones] [opciones-conexión]
+```
 
-- `-t, --type <type>`: Tipo de base de datos (postgres, mysql, mssql)
-- `-H, --host <host>`: Host de la base de datos
-- `-P, --port <port>`: Puerto de la base de datos
-- `-u, --username <username>`: Usuario de la base de datos
-- `-p, --password <password>`: Contraseña de la base de datos
-- `-d, --database <database>`: Nombre de la base de datos
-- `--ssl`: Habilitar SSL (opcional)
-- `-c, --config <path>`: Ruta a un archivo de configuración específico
+| Flag | Descripción | Obligatorio |
+|------|-------------|-------------|
+| `--target <target>` | ORM objetivo (`sequelize`, `typeorm`, `prisma`, `mongoose`) | Sí |
+| `--output <dir>` | Directorio de salida | No |
+
+#### `migrations`
+
+Genera migraciones a partir del esquema de la base de datos.
+
+```bash
+dbutility migrations --target <orm> [opciones] [opciones-conexión]
+```
+
+| Flag | Descripción | Obligatorio |
+|------|-------------|-------------|
+| `--target <target>` | ORM objetivo (`sequelize`, `typeorm`) | Sí |
+| `--output <dir>` | Directorio de salida | No |
+| `--data` | Genera migración de datos (seeds) junto con el esquema | No |
+| `--only-data` | Genera SOLO migración de datos | No |
+| `--tables <tables>` | Lista de tablas separadas por coma para exportación de datos | Sí (si `--data` o `--only-data`) |
+
+#### `test`
+
+Prueba migraciones generadas en contenedores Docker.
+
+```bash
+dbutility test --target <orm> [opciones]
+```
+
+| Flag | Descripción | Obligatorio |
+|------|-------------|-------------|
+| `--target <target>` | ORM objetivo (`sequelize`, `typeorm`) | Sí |
+| `--dir <dir>` | Directorio conteniendo las migraciones | No |
+| `--engines <engines>` | Imágenes Docker para probar (ej: `postgres:14,mysql:8`) | No |
+| `--backup` | Exporta backup de la base de datos del contenedor después de la prueba | No |
 
 ## Licencia
 
