@@ -20,6 +20,7 @@ interface PgColumnRow {
   character_maximum_length: number | null;
   numeric_precision: number | null;
   numeric_scale: number | null;
+  is_identity: string;
 }
 
 interface PgConstraintRow {
@@ -99,7 +100,9 @@ export class PostgresIntrospector extends BaseIntrospector {
         defaultValue: c.column_default,
         isPrimaryKey: pkSet ? pkSet.has(c.column_name) : false,
         isUnique: uniqueSet ? uniqueSet.has(c.column_name) : false,
-        isAutoIncrement: c.column_default !== null && c.column_default.includes('nextval'),
+        isAutoIncrement:
+          (c.column_default !== null && c.column_default.includes('nextval')) ||
+          c.is_identity === 'YES',
         maxLength: c.character_maximum_length,
         numericPrecision: c.numeric_precision,
         numericScale: c.numeric_scale,
@@ -177,7 +180,8 @@ export class PostgresIntrospector extends BaseIntrospector {
         column_default,
         character_maximum_length,
         numeric_precision,
-        numeric_scale
+        numeric_scale,
+        is_identity
       FROM information_schema.columns
       WHERE table_schema = 'public'
       ORDER BY table_name, ordinal_position

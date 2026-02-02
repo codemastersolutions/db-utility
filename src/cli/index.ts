@@ -252,7 +252,10 @@ addConnectionOptions(exportCommand)
     });
   });
 
-const migrateCommand = program.command('migrations').description(messages.cli.migrateDescription);
+const migrateCommand = program
+  .command('migrations')
+  .alias('migration')
+  .description(messages.cli.migrateDescription);
 
 addConnectionOptions(migrateCommand)
   .option('--target <target>', 'Target ORM: sequelize, typeorm')

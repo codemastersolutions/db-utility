@@ -20,6 +20,7 @@ interface MssqlColumnRow {
   character_maximum_length: number | null;
   numeric_precision: number | null;
   numeric_scale: number | null;
+  is_identity: number;
 }
 
 interface MssqlPkRow {
@@ -88,7 +89,7 @@ export class MssqlIntrospector extends BaseIntrospector {
         defaultValue: c.column_default,
         isPrimaryKey: pkSet ? pkSet.has(c.column_name) : false,
         isUnique: false,
-        isAutoIncrement: false,
+        isAutoIncrement: c.is_identity === 1,
         maxLength: c.character_maximum_length,
         numericPrecision: c.numeric_precision,
         numericScale: c.numeric_scale,
@@ -176,7 +177,8 @@ export class MssqlIntrospector extends BaseIntrospector {
         COLUMN_DEFAULT AS column_default,
         CHARACTER_MAXIMUM_LENGTH AS character_maximum_length,
         NUMERIC_PRECISION AS numeric_precision,
-        NUMERIC_SCALE AS numeric_scale
+        NUMERIC_SCALE AS numeric_scale,
+        COLUMNPROPERTY(OBJECT_ID(TABLE_SCHEMA + '.' + TABLE_NAME), COLUMN_NAME, 'IsIdentity') AS is_identity
       FROM INFORMATION_SCHEMA.COLUMNS
       ORDER BY TABLE_NAME, ORDINAL_POSITION
     `;
@@ -255,4 +257,3 @@ export class MssqlIntrospector extends BaseIntrospector {
     return this.connector.query<MssqlFkRow>(sql);
   }
 }
-

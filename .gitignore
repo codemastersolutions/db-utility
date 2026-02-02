@@ -8,3 +8,5 @@ coverage
 **/generated-migrations
 **/generated-models
 exports
+db-utility-migrations
+dbutility.config.json
