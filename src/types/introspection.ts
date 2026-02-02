@@ -44,4 +44,5 @@ export interface TableData {
   tableName: string;
   columns: ColumnMetadata[];
   rows: Record<string, any>[];
+  disableIdentity?: boolean;
 }

@@ -1,5 +1,6 @@
 import { IDatabaseConnector, DatabaseType } from '../types/database';
 import { DatabaseSchema, TableData } from '../types/introspection';
+import { DataTableConfig } from '../config/AppConfig';
 
 export class DataExtractor {
   constructor(
@@ -7,10 +8,17 @@ export class DataExtractor {
     private type: DatabaseType,
   ) {}
 
-  async extract(schema: DatabaseSchema, tableNames: string[]): Promise<TableData[]> {
+  async extract(
+    schema: DatabaseSchema,
+    tables: (string | DataTableConfig)[],
+  ): Promise<TableData[]> {
     const result: TableData[] = [];
 
-    for (const tableName of tableNames) {
+    for (const tableConfig of tables) {
+      const tableName = typeof tableConfig === 'string' ? tableConfig : tableConfig.table;
+      const whereClause = typeof tableConfig === 'string' ? undefined : tableConfig.where;
+      const disableIdentity = typeof tableConfig === 'string' ? undefined : tableConfig.disableIdentity;
+
       const targetName = tableName.toLowerCase();
       const table = schema.tables.find((t) => t.name.toLowerCase() === targetName);
 
@@ -20,7 +28,11 @@ export class DataExtractor {
       }
 
       const quotedName = this.quoteIdentifier(table.name);
-      const sql = `SELECT * FROM ${quotedName}`;
+      let sql = `SELECT * FROM ${quotedName}`;
+
+      if (whereClause) {
+        sql += ` WHERE ${whereClause}`;
+      }
 
       try {
         const rows = await this.connector.query<Record<string, any>>(sql, [], {
@@ -30,6 +42,7 @@ export class DataExtractor {
           tableName: table.name,
           columns: table.columns,
           rows,
+          disableIdentity,
         });
       } catch (error) {
         console.error(`Error extracting data from ${table.name}:`, error);

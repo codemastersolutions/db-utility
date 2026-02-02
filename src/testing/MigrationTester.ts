@@ -65,10 +65,10 @@ export class MigrationTester {
       if (existsSync(infoPath)) {
         try {
           const info = JSON.parse(readFileSync(infoPath, 'utf-8'));
-          if (info.type && info.version) {
+          if (info.type) {
             testEngines.push({
               type: info.type,
-              version: this.extractVersionNumber(info.version),
+              version: info.version ? this.extractVersionNumber(info.version) : 'latest',
               originalString: info.version,
               databaseName: info.databaseName,
             });

@@ -254,7 +254,7 @@ addConnectionOptions(exportCommand)
 
 const migrateCommand = program
   .command('migrations')
-  .alias('migration')
+  .aliases(['migration', 'migrate'])
   .description(messages.cli.migrateDescription);
 
 addConnectionOptions(migrateCommand)
@@ -279,22 +279,27 @@ addConnectionOptions(migrateCommand)
 
       // Logic:
       // --only-data: Generate ONLY data migrations (no schema)
-      // --data: Generate BOTH schema AND data migrations
+      // --data or config.data: Generate BOTH schema AND data migrations
       // (default): Generate ONLY schema migrations
 
-      const generateData = options.onlyData || options.data;
+      const isDataEnabled = options.data || appConfig.migrations.data;
+      const generateData = options.onlyData || isDataEnabled;
       const generateSchema = !options.onlyData;
 
       let extractedData: any[] = [];
       if (generateData) {
-        const tables = options.tables ? options.tables.split(',').map((t) => t.trim()) : [];
+        const tables = options.tables
+          ? options.tables.split(',').map((t) => t.trim())
+          : appConfig.migrations.dataTables || [];
+
         if (tables.length === 0) {
           throw new Error(
-            'You must specify at least one table via --tables when using --data or --only-data',
+            'You must specify at least one table via --tables or config.migrations.dataTables when using --data or --only-data',
           );
         }
 
-        console.log(`Extracting data from tables: ${tables.join(', ')}...`);
+        const tableNames = tables.map((t) => (typeof t === 'string' ? t : t.table));
+        console.log(`Extracting data from tables: ${tableNames.join(', ')}...`);
         const extractor = new DataExtractor(connector, config.type);
         extractedData = await extractor.extract(schema, tables);
       }
@@ -327,7 +332,7 @@ addConnectionOptions(migrateCommand)
         // If options.onlyData is true, generateSchema is false, so we won't be here.
         const files = await migrationGenerator.generateMigrations(
           schema,
-          options.data ? extractedData : undefined,
+          isDataEnabled ? extractedData : undefined,
         );
 
         GeneratorWriter.clean(outputDir);
@@ -391,9 +396,13 @@ testCommand
         return;
       }
 
-      const migrationsDir =
-        options.dir ||
-        join(process.cwd(), 'exports', 'generated-migrations', options.target.toLowerCase());
+      let migrationsDir: string;
+      if (options.dir) {
+        migrationsDir = options.dir;
+      } else {
+        const baseDir = resolveMigrationOutputDir(process.cwd(), undefined, appConfig);
+        migrationsDir = join(baseDir, options.target.toLowerCase());
+      }
 
       const engines = options.engines ? options.engines.split(',').map((e) => e.trim()) : undefined;
 
@@ -401,7 +410,8 @@ testCommand
       const tester = new MigrationTester(containerManager);
 
       try {
-        await tester.test(options.target, migrationsDir, engines, options.backup);
+        const backup = options.backup ?? appConfig.migrations.backup;
+        await tester.test(options.target, migrationsDir, engines, backup);
       } catch (error) {
         handleCliError(error);
       }

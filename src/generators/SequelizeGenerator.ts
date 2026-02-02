@@ -1,4 +1,5 @@
 import { ColumnMetadata, DatabaseSchema, TableData } from '../types/introspection';
+import { filterAutoIncrementColumns } from '../utils/DataUtils';
 import { topologicalSort } from '../utils/topologicalSort';
 import {
   DataMigrationGenerator,
@@ -166,14 +167,46 @@ module.exports = {
           counter++;
           const seedPaddedCounter = String(counter).padStart(6, '0');
           const seedMigrationName = `${timestamp}${seedPaddedCounter}-seed-${table.name}.js`;
-          const rowsContent = JSON.stringify(tableData.rows, null, 2);
+          const rows = filterAutoIncrementColumns(tableData);
+          const rowsContent = JSON.stringify(rows, null, 2);
+
+          const autoIncCol = tableData.columns.find((c) => c.isAutoIncrement);
+          const autoIncColName = autoIncCol ? autoIncCol.name : null;
+          const hasAutoIncInData =
+            autoIncColName &&
+            rows.length > 0 &&
+            Object.prototype.hasOwnProperty.call(rows[0], autoIncColName);
+
+          const enableIdentity = tableData.disableIdentity || hasAutoIncInData;
+
+          const preInsert = enableIdentity
+            ? `
+        const dialect = queryInterface.sequelize.getDialect();
+        if (dialect === 'mssql') {
+          await queryInterface.sequelize.query('SET IDENTITY_INSERT "${table.name}" ON', { transaction });
+        }`
+            : '';
+
+          const postInsertSimplified = enableIdentity
+            ? `
+        if (dialect === 'mssql') {
+          await queryInterface.sequelize.query('SET IDENTITY_INSERT "${table.name}" OFF', { transaction });
+        } else if (dialect === 'postgres' && '${autoIncColName}') {
+          await queryInterface.sequelize.query('SELECT setval(pg_get_serial_sequence(\\'"${table.name}"\\', \\'${autoIncColName}\\'), MAX("${autoIncColName}")) FROM "${table.name}";', { transaction });
+        }`
+            : '';
 
           const seedContent = `'use strict';
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    if (${tableData.rows.length} > 0) {
-      await queryInterface.bulkInsert('${table.name}', ${rowsContent}, {});
+    const data = ${rowsContent};
+    if (data.length > 0) {
+      await queryInterface.sequelize.transaction(async (transaction) => {${preInsert}
+        for (const row of data) {
+          await queryInterface.bulkInsert('${table.name}', [row], { transaction });
+        }${postInsertSimplified}
+      });
     }
   },
 
@@ -209,14 +242,41 @@ module.exports = {
       const paddedCounter = String(counter).padStart(6, '0');
       const migrationName = `${timestamp}${paddedCounter}-seed-${tableData.tableName}.js`;
 
-      const rowsContent = JSON.stringify(tableData.rows, null, 2);
+      const rows = filterAutoIncrementColumns(tableData);
+      const rowsContent = JSON.stringify(rows, null, 2);
+
+      const autoIncCol = tableData.columns.find((c) => c.isAutoIncrement);
+      const autoIncColName = autoIncCol ? autoIncCol.name : null;
+
+      const preInsert = tableData.disableIdentity
+        ? `
+        const dialect = queryInterface.sequelize.getDialect();
+        if (dialect === 'mssql') {
+          await queryInterface.sequelize.query('SET IDENTITY_INSERT [${tableData.tableName}] ON', { transaction });
+        }`
+        : '';
+
+      const postInsertSimplified = tableData.disableIdentity
+        ? `
+        if (dialect === 'mssql') {
+           await queryInterface.sequelize.query('SET IDENTITY_INSERT [${tableData.tableName}] OFF', { transaction });
+         } else if (dialect === 'postgres' && '${autoIncColName}') {
+          await queryInterface.sequelize.query('SELECT setval(pg_get_serial_sequence(\\'"${tableData.tableName}"\\', \\'${autoIncColName}\\'), MAX("${autoIncColName}")) FROM "${tableData.tableName}";', { transaction });
+        }`
+        : '';
 
       const content = `'use strict';
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    if (${tableData.rows.length} > 0) {
-      await queryInterface.bulkInsert('${tableData.tableName}', ${rowsContent}, {});
+    const data = ${rowsContent};
+    if (data.length > 0) {
+      await queryInterface.sequelize.transaction(async (transaction) => {${preInsert}
+        for (const row of data) {
+          await queryInterface.bulkInsert('${tableData.tableName}', [row], { transaction });
+        }
+${postInsertSimplified}
+      });
     }
   },
 
@@ -238,19 +298,66 @@ module.exports = {
     return name.charAt(0).toUpperCase() + name.slice(1);
   }
 
-  private mapType(dataType: string): string {
-    const lower = dataType.toLowerCase();
+  private mapType(col: ColumnMetadata): string {
+    const lower = col.dataType.toLowerCase();
+
+    // Boolean
+    if (lower === 'bit' || lower.includes('bool')) return 'DataTypes.BOOLEAN';
+
+    // Integers
+    if (lower.includes('tinyint')) return 'DataTypes.TINYINT';
+    if (lower.includes('smallint')) return 'DataTypes.SMALLINT';
+    if (lower.includes('mediumint')) return 'DataTypes.MEDIUMINT';
+    if (lower.includes('bigint')) return 'DataTypes.BIGINT';
     if (lower.includes('int')) return 'DataTypes.INTEGER';
-    if (lower.includes('char') || lower.includes('text')) return 'DataTypes.STRING';
-    if (lower.includes('bool')) return 'DataTypes.BOOLEAN';
+
+    // Floats / Decimals
+    if (lower.includes('float')) return 'DataTypes.FLOAT';
+    if (lower.includes('double')) return 'DataTypes.DOUBLE';
+    if (lower.includes('decimal') || lower.includes('numeric') || lower.includes('money')) {
+      if (
+        col.numericPrecision !== null &&
+        col.numericPrecision !== undefined &&
+        col.numericScale !== null &&
+        col.numericScale !== undefined
+      ) {
+        return `DataTypes.DECIMAL(${col.numericPrecision}, ${col.numericScale})`;
+      }
+      return 'DataTypes.DECIMAL';
+    }
+
+    // Dates
+    if (lower === 'date') return 'DataTypes.DATEONLY';
+    if (lower === 'time') return 'DataTypes.TIME';
     if (lower.includes('date') || lower.includes('time')) return 'DataTypes.DATE';
-    if (lower.includes('float') || lower.includes('double') || lower.includes('decimal'))
-      return 'DataTypes.FLOAT';
+
+    // Strings
+    if (
+      lower.includes('text') ||
+      lower.includes('ntext') ||
+      lower.includes('image') ||
+      lower.includes('xml')
+    )
+      return 'DataTypes.TEXT';
+
+    if (lower.includes('char')) {
+      // char, varchar, nchar, nvarchar
+      if (col.maxLength === -1) return 'DataTypes.TEXT';
+      if (col.maxLength && col.maxLength > 0) return `DataTypes.STRING(${col.maxLength})`;
+      return 'DataTypes.STRING';
+    }
+
+    // Binary
+    if (lower.includes('binary') || lower.includes('blob')) return 'DataTypes.BLOB';
+
+    // UUID
+    if (lower.includes('uuid') || lower.includes('guid')) return 'DataTypes.UUID';
+
     return 'DataTypes.STRING';
   }
 
   private generateColumnDefinition(col: ColumnMetadata): string {
-    const type = this.mapType(col.dataType);
+    const type = this.mapType(col);
     const parts = [`      type: ${type}`];
 
     if (col.isPrimaryKey) parts.push('      primaryKey: true');
@@ -268,7 +375,7 @@ module.exports = {
     col: ColumnMetadata,
     suppressPrimaryKey: boolean = false,
   ): string {
-    const type = this.mapType(col.dataType).replace('DataTypes.', 'Sequelize.');
+    const type = this.mapType(col).replace('DataTypes.', 'Sequelize.');
     const parts = [`        type: ${type}`];
 
     if (col.isPrimaryKey && !suppressPrimaryKey) parts.push('        primaryKey: true');
