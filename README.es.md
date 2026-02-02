@@ -65,8 +65,36 @@ El archivo de configuración permite definir el idioma de la CLI, directorios de
     "password": "password",
     "database": "mibasedatos",
     "ssl": false
+  },
+  "connections": {
+    "desarrollo": {
+      "type": "mysql",
+      "host": "localhost",
+      "port": 3306,
+      "username": "root",
+      "password": "password",
+      "database": "dev_db"
+    },
+    "produccion": {
+      "type": "postgres",
+      "host": "prod-db",
+      "port": 5432,
+      "username": "admin",
+      "password": "secure_password",
+      "database": "prod_db",
+      "ssl": true
+    }
   }
 }
+```
+
+### Múltiples Conexiones
+
+Puede definir múltiples conexiones dentro de la propiedad `connections` y utilizarlas en la CLI con el flag `--conn <nombre>`.
+
+Ejemplo:
+```bash
+dbutility connect --conn desarrollo
 ```
 
 ### Prioridad de Configuración
@@ -120,6 +148,7 @@ DB_NAME=mibasedatos
 
 | Flag | Descripción |
 |------|-------------|
+| `--conn <name>` | Nombre de la conexión definida en el archivo de configuración |
 | `-c, --config <path>` | Ruta al archivo de configuración |
 | `-t, --type <type>` | Tipo de base de datos (`mysql`, `postgres`, `mssql`) |
 | `-H, --host <host>` | Host de la base de datos |
@@ -190,6 +219,33 @@ dbutility test --target <orm> [opciones]
 | `--dir <dir>` | Directorio conteniendo las migraciones | No |
 | `--engines <engines>` | Imágenes Docker para probar (ej: `postgres:14,mysql:8`) | No |
 | `--backup` | Exporta backup de la base de datos del contenedor después de la prueba | No |
+
+## Ejemplos de Uso
+
+### Conectar a una base de datos usando una conexión con nombre
+```bash
+dbutility connect --conn produccion
+```
+
+### Realizar introspección de una base de datos usando parámetros de conexión en línea
+```bash
+dbutility introspect --type postgres --host localhost --username usuario --password contrasena --database mibasedatos
+```
+
+### Exportar modelos de Sequelize desde una conexión específica
+```bash
+dbutility export --target sequelize --conn desarrollo --output ./src/models
+```
+
+### Generar migraciones de TypeORM desde una conexión específica
+```bash
+dbutility migrations --target typeorm --conn produccion
+```
+
+### Generar Migraciones de Datos (Seeds)
+```bash
+dbutility migrations --target sequelize --conn desarrollo --data --tables "usuarios,roles"
+```
 
 ## Licencia
 

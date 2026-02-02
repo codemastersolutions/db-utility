@@ -16,6 +16,7 @@ export interface CliMessages {
   optionPassword: string;
   optionDatabase: string;
   optionSsl: string;
+  optionConnectionName: string;
   loadingConfig: string;
   connecting: (dbType: string) => string;
   connectSuccess: string;
@@ -41,6 +42,7 @@ export interface CliMessages {
   configFileFormatUnsupported: (ext: string) => string;
   configDbTypeOrConnectionStringRequired: string;
   configDbTypeRequired: string;
+  connectionConfigNotFound: (name: string) => string;
   connectionFailed: string;
 }
 
@@ -66,6 +68,7 @@ const ptBrMessages: Messages = {
     optionPassword: 'Senha do banco de dados',
     optionDatabase: 'Nome do banco de dados',
     optionSsl: 'Habilitar SSL',
+    optionConnectionName: 'Nome da conexão no arquivo de configuração',
     loadingConfig: 'Carregando configuração...',
     connecting: (dbType: string) => `Tentando conectar ao banco de dados ${dbType}...`,
     connectSuccess: '✅ Conexão estabelecida com sucesso!',
@@ -102,6 +105,8 @@ const ptBrMessages: Messages = {
       'Tipo de banco de dados (type) ou connectionString é obrigatório.',
     configDbTypeRequired:
       'Configuração de banco de dados não encontrada. Defina as variáveis de ambiente ou crie um arquivo de configuração.',
+    connectionConfigNotFound: (name: string) =>
+      `Conexão "${name}" não encontrada no arquivo de configuração.`,
     connectionFailed: 'Conexão não estabelecida',
   },
 };
@@ -124,6 +129,7 @@ const enMessages: Messages = {
     optionPassword: 'Database password',
     optionDatabase: 'Database name',
     optionSsl: 'Enable SSL',
+    optionConnectionName: 'Connection name in configuration file',
     loadingConfig: 'Loading configuration...',
     connecting: (dbType: string) => `Trying to connect to ${dbType} database...`,
     connectSuccess: '✅ Connection established successfully!',
@@ -155,6 +161,8 @@ const enMessages: Messages = {
     configDbTypeOrConnectionStringRequired: 'Database type (type) or connectionString is required.',
     configDbTypeRequired:
       'Database configuration not found. Set environment variables or create a configuration file.',
+    connectionConfigNotFound: (name: string) =>
+      `Connection "${name}" not found in configuration file.`,
     connectionFailed: 'Connection not established',
   },
 };
@@ -177,6 +185,7 @@ const esMessages: Messages = {
     optionPassword: 'Contraseña de la base de datos',
     optionDatabase: 'Nombre de la base de datos',
     optionSsl: 'Habilitar SSL',
+    optionConnectionName: 'Nombre de la conexión en el archivo de configuración',
     loadingConfig: 'Cargando configuración...',
     connecting: (dbType: string) => `Intentando conectar a la base de datos ${dbType}...`,
     connectSuccess: '✅ Conexión establecida con éxito.',
@@ -214,6 +223,8 @@ const esMessages: Messages = {
       'El tipo de base de datos (type) o connectionString es obligatorio.',
     configDbTypeRequired:
       'Configuración de base de datos no encontrada. Defina las variables de entorno o cree un archivo de configuración.',
+    connectionConfigNotFound: (name: string) =>
+      `Conexión "${name}" no encontrada en el archivo de configuración.`,
     connectionFailed: 'Conexión no establecida',
   },
 };

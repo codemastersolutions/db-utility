@@ -89,6 +89,9 @@ const handleCliError = (error: unknown) => {
       case 'CONNECTION_FAILED':
         text = messages.cli.connectionFailed;
         break;
+      case 'CONNECTION_CONFIG_NOT_FOUND':
+        text = messages.cli.connectionConfigNotFound(error.details || '?');
+        break;
       default:
         text = error.message;
         break;
@@ -105,6 +108,7 @@ const handleCliError = (error: unknown) => {
 
 const addConnectionOptions = (cmd: Command) => {
   return cmd
+    .option('--conn <name>', messages.cli.optionConnectionName)
     .option('-c, --config <path>', messages.cli.optionConfigPath)
     .option('-t, --type <type>', messages.cli.optionType)
     .option('-H, --host <host>', messages.cli.optionHost)
@@ -116,6 +120,7 @@ const addConnectionOptions = (cmd: Command) => {
 };
 
 interface CliOptions {
+  conn?: string;
   config?: string;
   type?: string;
   host?: string;
@@ -158,7 +163,7 @@ const getConnectionConfig = async (options: CliOptions): Promise<DatabaseConfig>
   if (options.database) overrides.database = options.database;
   if (options.ssl) overrides.ssl = true;
 
-  return ConfigLoader.load(options.config, overrides);
+  return ConfigLoader.load(options.config, overrides, options.conn);
 };
 
 const withConnection = async (

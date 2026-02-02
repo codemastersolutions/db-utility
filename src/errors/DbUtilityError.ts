@@ -7,7 +7,8 @@ export type DbUtilityErrorCode =
   | 'CONFIG_FILE_FORMAT_UNSUPPORTED'
   | 'CONFIG_DB_TYPE_OR_CONNECTION_STRING_REQUIRED'
   | 'CONFIG_DB_TYPE_REQUIRED'
-  | 'CONNECTION_FAILED';
+  | 'CONNECTION_FAILED'
+  | 'CONNECTION_CONFIG_NOT_FOUND';
 
 export class DbUtilityError extends Error {
   code: DbUtilityErrorCode;

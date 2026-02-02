@@ -65,8 +65,37 @@ O arquivo de configuração permite definir o idioma da CLI, diretórios de saí
     "password": "senha",
     "database": "meubanco",
     "ssl": false
+  },
+  "connections": {
+    "desenvolvimento": {
+      "type": "mysql",
+      "host": "localhost",
+      "port": 3306,
+      "username": "root",
+      "password": "password",
+      "database": "dev_db"
+    },
+    "producao": {
+      "type": "postgres",
+      "host": "prod-db",
+      "port": 5432,
+      "username": "admin",
+      "password": "secure_password",
+      "database": "prod_db",
+      "ssl": true
+    }
   }
 }
+```
+
+### Múltiplas Conexões
+
+Você pode definir múltiplas conexões dentro da propriedade `connections` e utilizá-las na CLI com a flag `--conn <nome>`.
+
+Exemplo:
+
+```bash
+dbutility connect --conn desenvolvimento
 ```
 
 ### Prioridade de Configuração
@@ -109,25 +138,26 @@ DB_NAME=meubanco
 
 ### Opções Globais
 
-| Flag | Descrição |
-|------|-----------|
-| `--init` | Inicializa o arquivo de configuração |
-| `-f, --force` | Força a recriação do arquivo de configuração se já existir |
-| `-v, --version` | Exibe o número da versão |
-| `-h, --help` | Exibe ajuda para o comando |
+| Flag            | Descrição                                                  |
+| --------------- | ---------------------------------------------------------- |
+| `--init`        | Inicializa o arquivo de configuração                       |
+| `-f, --force`   | Força a recriação do arquivo de configuração se já existir |
+| `-v, --version` | Exibe o número da versão                                   |
+| `-h, --help`    | Exibe ajuda para o comando                                 |
 
-### Opções de Conexão (Disponíveis para `connect`, `introspect`, `export`, `migrate`)
+### Opções de Conexão (Disponíveis para `connect`, `introspect`, `export`, `migration`)
 
-| Flag | Descrição |
-|------|-----------|
-| `-c, --config <path>` | Caminho para o arquivo de configuração |
-| `-t, --type <type>` | Tipo de banco de dados (`mysql`, `postgres`, `mssql`) |
-| `-H, --host <host>` | Host do banco de dados |
-| `-P, --port <port>` | Porta do banco de dados |
-| `-u, --username <username>` | Usuário do banco de dados |
-| `-p, --password <password>` | Senha do banco de dados |
-| `-d, --database <database>` | Nome do banco de dados |
-| `--ssl` | Habilita conexão SSL |
+| Flag                        | Descrição                                             |
+| --------------------------- | ----------------------------------------------------- |
+| `--conn <name>`             | Nome da conexão definida no arquivo de configuração   |
+| `-c, --config <path>`       | Caminho para o arquivo de configuração                |
+| `-t, --type <type>`         | Tipo de banco de dados (`mysql`, `postgres`, `mssql`) |
+| `-H, --host <host>`         | Host do banco de dados                                |
+| `-P, --port <port>`         | Porta do banco de dados                               |
+| `-u, --username <username>` | Usuário do banco de dados                             |
+| `-p, --password <password>` | Senha do banco de dados                               |
+| `-d, --database <database>` | Nome do banco de dados                                |
+| `--ssl`                     | Habilita conexão SSL                                  |
 
 ### Comandos
 
@@ -155,10 +185,10 @@ Exporta modelos para o ORM alvo.
 dbutility export --target <orm> [opções] [opções-conexão]
 ```
 
-| Flag | Descrição | Obrigatório |
-|------|-----------|-------------|
-| `--target <target>` | ORM alvo (`sequelize`, `typeorm`, `prisma`, `mongoose`) | Sim |
-| `--output <dir>` | Diretório de saída | Não |
+| Flag                | Descrição                                               | Obrigatório |
+| ------------------- | ------------------------------------------------------- | ----------- |
+| `--target <target>` | ORM alvo (`sequelize`, `typeorm`, `prisma`, `mongoose`) | Sim         |
+| `--output <dir>`    | Diretório de saída                                      | Não         |
 
 #### `migrations`
 
@@ -168,12 +198,12 @@ Gera migrações a partir do esquema do banco de dados.
 dbutility migrations --target <orm> [opções] [opções-conexão]
 ```
 
-| Flag | Descrição | Obrigatório |
-|------|-----------|-------------|
-| `--target <target>` | ORM alvo (`sequelize`, `typeorm`) | Sim |
-| `--output <dir>` | Diretório de saída | Não |
-| `--data` | Gera migração de dados (seeds) junto com o esquema | Não |
-| `--only-data` | Gera APENAS migração de dados | Não |
+| Flag                | Descrição                                                       | Obrigatório                        |
+| ------------------- | --------------------------------------------------------------- | ---------------------------------- |
+| `--target <target>` | ORM alvo (`sequelize`, `typeorm`)                               | Sim                                |
+| `--output <dir>`    | Diretório de saída                                              | Não                                |
+| `--data`            | Gera migração de dados (seeds) junto com o esquema              | Não                                |
+| `--only-data`       | Gera APENAS migração de dados                                   | Não                                |
 | `--tables <tables>` | Lista de tabelas separadas por vírgula para exportação de dados | Sim (se `--data` ou `--only-data`) |
 
 #### `test`
@@ -184,12 +214,44 @@ Testa migrações geradas em containers Docker.
 dbutility test --target <orm> [opções]
 ```
 
-| Flag | Descrição | Obrigatório |
-|------|-----------|-------------|
-| `--target <target>` | ORM alvo (`sequelize`, `typeorm`) | Sim |
-| `--dir <dir>` | Diretório contendo as migrações | Não |
-| `--engines <engines>` | Imagens Docker para testar (ex: `postgres:14,mysql:8`) | Não |
-| `--backup` | Exporta backup do banco de dados do container após o teste | Não |
+| Flag                  | Descrição                                                  | Obrigatório |
+| --------------------- | ---------------------------------------------------------- | ----------- |
+| `--target <target>`   | ORM alvo (`sequelize`, `typeorm`)                          | Sim         |
+| `--dir <dir>`         | Diretório contendo as migrações                            | Não         |
+| `--engines <engines>` | Imagens Docker para testar (ex: `postgres:14,mysql:8`)     | Não         |
+| `--backup`            | Exporta backup do banco de dados do container após o teste | Não         |
+
+## Exemplos de Uso
+
+### Conectar a um banco de dados usando uma conexão nomeada
+
+```bash
+dbutility connect --conn producao
+```
+
+### Fazer introspecção de um banco de dados usando parâmetros de conexão inline
+
+```bash
+dbutility introspect --type postgres --host localhost --username usuario --password senha --database meubanco
+```
+
+### Exportar modelos do Sequelize de uma conexão específica
+
+```bash
+dbutility export --target sequelize --conn desenvolvimento --output ./src/models
+```
+
+### Gerar migrações do TypeORM de uma conexão específica
+
+```bash
+dbutility migrations --target typeorm --conn producao
+```
+
+### Gerar Migrações de Dados (Seeds)
+
+```bash
+dbutility migrations --target sequelize --conn desenvolvimento --data --tables "usuarios,cargos"
+```
 
 ## Licença
 

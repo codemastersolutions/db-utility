@@ -19,6 +19,7 @@ interface InitialFileConfig {
     fileNamePattern: 'timestamp-prefix' | 'prefix-timestamp';
   };
   connection?: Partial<DatabaseConfig>;
+  connections?: Record<string, Partial<DatabaseConfig>>;
 }
 
 const defaultConfig: InitialFileConfig = {
@@ -38,6 +39,26 @@ const defaultConfig: InitialFileConfig = {
     password: 'password',
     database: 'database_name',
     ssl: false,
+  },
+  connections: {
+    development: {
+      type: 'mysql',
+      host: 'localhost',
+      port: 3306,
+      username: 'root',
+      password: 'password',
+      database: 'dev_db',
+      ssl: false,
+    },
+    production: {
+      type: 'postgres',
+      host: 'prod-db-host',
+      port: 5432,
+      username: 'prod_user',
+      password: 'secure_password',
+      database: 'prod_db',
+      ssl: true,
+    },
   },
 };
 

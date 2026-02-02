@@ -10,6 +10,7 @@ export class ConfigLoader {
   static async load(
     configPath?: string,
     overrides?: Partial<DatabaseConfig>,
+    connectionName?: string,
   ): Promise<DatabaseConfig> {
     // 1. Carregar do ENV (base)
     const envConfig = this.loadFromEnvRaw();
@@ -37,7 +38,17 @@ export class ConfigLoader {
 
       // Verifica se tem a propriedade 'connection' (novo formato) ou se é o formato antigo
       if (rawFile && typeof rawFile === 'object') {
-        if ('connection' in rawFile && typeof rawFile.connection === 'object') {
+        if (connectionName) {
+          if (
+            rawFile.connections &&
+            typeof rawFile.connections === 'object' &&
+            rawFile.connections[connectionName]
+          ) {
+            fileConfig = rawFile.connections[connectionName];
+          } else {
+            throw new DbUtilityError('CONNECTION_CONFIG_NOT_FOUND', connectionName);
+          }
+        } else if ('connection' in rawFile && typeof rawFile.connection === 'object') {
           fileConfig = rawFile.connection;
         } else if ('type' in rawFile || 'connectionString' in rawFile) {
           // Assume formato antigo (flat) se tiver propriedades chave

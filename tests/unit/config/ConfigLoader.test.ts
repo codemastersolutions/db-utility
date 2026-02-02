@@ -128,4 +128,47 @@ describe('ConfigLoader', () => {
       host: 'old-file-host',
     });
   });
+
+  it('deve carregar uma conexão específica do objeto connections', async () => {
+    const fileConfig = {
+      connections: {
+        dev: {
+          type: 'postgres',
+          host: 'dev-host',
+        },
+        prod: {
+          type: 'mysql',
+          host: 'prod-host',
+        },
+      },
+    };
+
+    vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+    vi.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify(fileConfig));
+
+    const config = await ConfigLoader.load('config.json', undefined, 'prod');
+
+    expect(config).toMatchObject({
+      type: 'mysql',
+      host: 'prod-host',
+    });
+  });
+
+  it('deve lançar erro se a conexão especificada não existir', async () => {
+    const fileConfig = {
+      connections: {
+        dev: {
+          type: 'postgres',
+          host: 'dev-host',
+        },
+      },
+    };
+
+    vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+    vi.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify(fileConfig));
+
+    await expect(ConfigLoader.load('config.json', undefined, 'staging')).rejects.toThrow(
+      new DbUtilityError('CONNECTION_CONFIG_NOT_FOUND', 'staging'),
+    );
+  });
 });

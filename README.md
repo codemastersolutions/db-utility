@@ -65,8 +65,36 @@ The configuration file allows you to define CLI language, output directories, na
     "password": "mypassword",
     "database": "mydb",
     "ssl": false
+  },
+  "connections": {
+    "development": {
+      "type": "mysql",
+      "host": "localhost",
+      "port": 3306,
+      "username": "root",
+      "password": "password",
+      "database": "dev_db"
+    },
+    "production": {
+      "type": "postgres",
+      "host": "prod-db",
+      "port": 5432,
+      "username": "admin",
+      "password": "secure_password",
+      "database": "prod_db",
+      "ssl": true
+    }
   }
 }
+```
+
+### Multiple Connections
+
+You can define multiple connections within the `connections` property and use them in the CLI with the `--conn <name>` flag.
+
+Example:
+```bash
+dbutility connect --conn development
 ```
 
 ### Configuration Priority
@@ -120,6 +148,7 @@ DB_NAME=mydb
 
 | Flag                        | Description                                  |
 | --------------------------- | -------------------------------------------- |
+| `--conn <name>`             | Connection name defined in configuration file|
 | `-c, --config <path>`       | Path to configuration file                   |
 | `-t, --type <type>`         | Database type (`mysql`, `postgres`, `mssql`) |
 | `-H, --host <host>`         | Database host                                |
@@ -190,6 +219,33 @@ dbutility test --target <orm> [options]
 | `--dir <dir>`         | Directory containing migrations                     | No       |
 | `--engines <engines>` | Docker images to test (e.g., `postgres:14,mysql:8`) | No       |
 | `--backup`            | Export database backup from container after test    | No       |
+
+## Usage Examples
+
+### Connect to a database using a named connection
+```bash
+dbutility connect --conn production
+```
+
+### Introspect a database using inline connection parameters
+```bash
+dbutility introspect --type postgres --host localhost --username myuser --password mypass --database mydb
+```
+
+### Export Sequelize models from a specific connection
+```bash
+dbutility export --target sequelize --conn development --output ./src/models
+```
+
+### Generate TypeORM migrations from a specific connection
+```bash
+dbutility migrations --target typeorm --conn production
+```
+
+### Generate Data Migrations (Seeds)
+```bash
+dbutility migrations --target sequelize --conn development --data --tables "users,roles"
+```
 
 ## License
 
