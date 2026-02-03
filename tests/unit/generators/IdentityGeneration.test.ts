@@ -43,16 +43,25 @@ describe('Identity Generation', () => {
     },
   ];
 
-  it('SequelizeGenerator should include identity reset for Postgres when disableIdentity is true', async () => {
+  it('SequelizeGenerator should generate separate Enable Identity migration when disableIdentity is true', async () => {
     const generator = new SequelizeGenerator();
     const files = await generator.generateDataMigrations(mockData);
 
-    const content = files[0].content;
-    expect(content).toContain("dialect === 'postgres'");
-    // Adjusted expectation to match generated code: quoted table and column names
-    expect(content).toContain(
-      'SELECT setval(pg_get_serial_sequence(\\\'"Users"\\\', \\\'id\\\'), MAX("id")) FROM "Users"',
-    );
+    // Should have 2 files: Seed and EnableIdentity
+    expect(files.length).toBe(2);
+
+    // Check Seed File
+    const seedContent = files[0].content;
+    expect(files[0].fileName).toContain('seed-Users.js');
+    expect(seedContent).not.toContain('SET IDENTITY_INSERT'); // Should NOT have identity insert
+    expect(seedContent).not.toContain('setval'); // Should NOT have setval
+
+    // Check Enable Identity File
+    const enableIdentityContent = files[1].content;
+    expect(files[1].fileName).toContain('enable-identity-Users.js');
+    expect(enableIdentityContent).toContain("dialect === 'postgres'");
+    expect(enableIdentityContent).toContain('changeColumn');
+    expect(enableIdentityContent).toContain('SELECT setval');
   });
 
   it('TypeORMGenerator should include identity reset for Postgres when disableIdentity is true', async () => {
@@ -61,19 +70,8 @@ describe('Identity Generation', () => {
 
     const content = files[0].content;
     expect(content).toContain("queryRunner.connection.driver.options.type === 'postgres'");
-    // Adjusted expectation to match generated code
     expect(content).toContain(
       'SELECT setval(pg_get_serial_sequence(\\\'"Users"\\\', \\\'id\\\'), MAX("id")) FROM "Users"',
     );
-  });
-
-  it('SequelizeGenerator should include identity insert for MSSQL when disableIdentity is true', async () => {
-    const generator = new SequelizeGenerator();
-    const files = await generator.generateDataMigrations(mockData);
-
-    const content = files[0].content;
-    expect(content).toContain("dialect === 'mssql'");
-    expect(content).toContain('SET IDENTITY_INSERT "Users" ON');
-    expect(content).toContain('SET IDENTITY_INSERT "Users" OFF');
   });
 });
