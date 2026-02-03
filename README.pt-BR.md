@@ -55,7 +55,10 @@ O arquivo de configuração permite definir o idioma da CLI, diretórios de saí
   },
   "migrations": {
     "outputDir": "db-utility-migrations",
-    "fileNamePattern": "timestamp-prefix"
+    "fileNamePattern": "timestamp-prefix",
+    "data": true,
+    "dataTables": ["usuarios", { "table": "logs", "where": "nivel = 'ERRO'" }],
+    "backup": true
   },
   "connection": {
     "type": "postgres",
@@ -87,6 +90,32 @@ O arquivo de configuração permite definir o idioma da CLI, diretórios de saí
   }
 }
 ```
+
+### Configuração Avançada de Extração de Dados
+
+A opção `dataTables` permite especificar quais tabelas devem ter seus dados exportados (para seeds). Você pode fornecer uma lista simples de nomes de tabelas ou um objeto com uma cláusula `where` para filtrar os dados.
+
+```json
+"dataTables": [
+  "cargos",
+  "permissoes",
+  {
+    "table": "usuarios",
+    "where": "ativo = 1 AND criado_em > '2023-01-01'",
+    "disableIdentity": true
+  },
+  {
+    "table": "bsistemas",
+    "where": "id > 15"
+  }
+]
+```
+
+A opção `disableIdentity` (padrão: `false`) permite inserir valores explícitos em colunas auto-increment/identity. Isso é útil quando você deseja preservar os IDs originais do banco de origem.
+
+- **MSSQL**: Envolve as inserções com `SET IDENTITY_INSERT [Table] ON/OFF`.
+- **PostgreSQL**: Reseta o valor da sequence após a inserção usando `setval` para evitar falhas em inserções subsequentes.
+- **Outros Bancos (MySQL, SQLite)**: Inclui a coluna identity no payload de inserção (geralmente atualizam o contador de auto-incremento automaticamente).
 
 ### Múltiplas Conexões
 
@@ -122,6 +151,15 @@ DB_UTILITY_MIGRATIONS_OUTPUT_DIR=meu-diretorio-migrations
 
 # Padrão de Nome de Arquivo de Migration (timestamp-prefix, prefix-timestamp)
 DB_UTILITY_MIGRATIONS_FILE_NAME_PATTERN=prefix-timestamp
+
+# Dados de Migração (true/false)
+DB_UTILITY_MIGRATIONS_DATA=true
+
+# Tabelas de Dados para Migração (Separadas por vírgula)
+DB_UTILITY_MIGRATIONS_DATA_TABLES=usuarios,cargos
+
+# Backup de Migração (true/false)
+DB_UTILITY_MIGRATIONS_BACKUP=true
 
 # Conexão com Banco de Dados (Fallback/Base)
 DB_TYPE=postgres
@@ -198,13 +236,13 @@ Gera migrações a partir do esquema do banco de dados.
 dbutility migrations --target <orm> [opções] [opções-conexão]
 ```
 
-| Flag                | Descrição                                                       | Obrigatório                        |
-| ------------------- | --------------------------------------------------------------- | ---------------------------------- |
-| `--target <target>` | ORM alvo (`sequelize`, `typeorm`)                               | Sim                                |
-| `--output <dir>`    | Diretório de saída                                              | Não                                |
-| `--data`            | Gera migração de dados (seeds) junto com o esquema              | Não                                |
-| `--only-data`       | Gera APENAS migração de dados                                   | Não                                |
-| `--tables <tables>` | Lista de tabelas separadas por vírgula para exportação de dados | Sim (se `--data` ou `--only-data`) |
+| Flag                | Descrição                                                                                  | Obrigatório                                                      |
+| ------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| `--target <target>` | ORM alvo (`sequelize`, `typeorm`)                                                          | Sim                                                              |
+| `--output <dir>`    | Diretório de saída                                                                         | Não                                                              |
+| `--data`            | Gera migração de dados (seeds) junto com o esquema (Sobrescreve configuração)              | Não                                                              |
+| `--only-data`       | Gera APENAS migração de dados                                                              | Não                                                              |
+| `--tables <tables>` | Lista de tabelas separadas por vírgula para exportação de dados (Sobrescreve configuração) | Sim (se `--data` ou `--only-data` e não estiver na configuração) |
 
 #### `test`
 
@@ -214,12 +252,12 @@ Testa migrações geradas em containers Docker.
 dbutility test --target <orm> [opções]
 ```
 
-| Flag                  | Descrição                                                  | Obrigatório |
-| --------------------- | ---------------------------------------------------------- | ----------- |
-| `--target <target>`   | ORM alvo (`sequelize`, `typeorm`)                          | Sim         |
-| `--dir <dir>`         | Diretório contendo as migrações                            | Não         |
-| `--engines <engines>` | Imagens Docker para testar (ex: `postgres:14,mysql:8`)     | Não         |
-| `--backup`            | Exporta backup do banco de dados do container após o teste | Não         |
+| Flag                  | Descrição                                                                             | Obrigatório |
+| --------------------- | ------------------------------------------------------------------------------------- | ----------- |
+| `--target <target>`   | ORM alvo (`sequelize`, `typeorm`)                                                     | Sim         |
+| `--dir <dir>`         | Diretório contendo as migrações                                                       | Não         |
+| `--engines <engines>` | Imagens Docker para testar (ex: `postgres:14,mysql:8`)                                | Não         |
+| `--backup`            | Exporta backup do banco de dados do container após o teste (Sobrescreve configuração) | Não         |
 
 ## Exemplos de Uso
 

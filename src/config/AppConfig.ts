@@ -7,6 +7,12 @@ dotenv.config();
 
 export type AppLanguage = 'pt-BR' | 'en' | 'es';
 
+export interface DataTableConfig {
+  table: string;
+  where?: string;
+  disableIdentity?: boolean;
+}
+
 export interface AppConfig {
   language: AppLanguage;
   introspection: {
@@ -15,6 +21,9 @@ export interface AppConfig {
   migrations: {
     outputDir: string;
     fileNamePattern: 'timestamp-prefix' | 'prefix-timestamp';
+    data?: boolean;
+    dataTables?: (string | DataTableConfig)[];
+    backup?: boolean;
   };
 }
 
@@ -26,6 +35,9 @@ const defaultConfig: AppConfig = {
   migrations: {
     outputDir: 'db-utility-migrations',
     fileNamePattern: 'timestamp-prefix',
+    data: false,
+    dataTables: [],
+    backup: false,
   },
 };
 
@@ -74,7 +86,17 @@ export class AppConfigLoader {
     const migrationsFileNamePatternRaw =
       fileMigrations?.fileNamePattern ?? envMigrations?.fileNamePattern;
 
-    if (migrationsOutputDir || migrationsFileNamePatternRaw) {
+    const migrationsData = fileMigrations?.data ?? envMigrations?.data;
+    const migrationsDataTables = fileMigrations?.dataTables ?? envMigrations?.dataTables;
+    const migrationsBackup = fileMigrations?.backup ?? envMigrations?.backup;
+
+    if (
+      migrationsOutputDir ||
+      migrationsFileNamePatternRaw ||
+      migrationsData !== undefined ||
+      migrationsDataTables ||
+      migrationsBackup !== undefined
+    ) {
       const fileNamePattern: 'timestamp-prefix' | 'prefix-timestamp' =
         migrationsFileNamePatternRaw === 'prefix-timestamp'
           ? 'prefix-timestamp'
@@ -83,6 +105,9 @@ export class AppConfigLoader {
       merged.migrations = {
         outputDir: migrationsOutputDir ?? defaultConfig.migrations.outputDir,
         fileNamePattern,
+        ...(migrationsData !== undefined ? { data: migrationsData } : {}),
+        ...(migrationsDataTables ? { dataTables: migrationsDataTables } : {}),
+        ...(migrationsBackup !== undefined ? { backup: migrationsBackup } : {}),
       };
     }
 
@@ -106,11 +131,26 @@ export class AppConfigLoader {
 
   private static loadFromEnvRaw(): Partial<AppConfig> {
     const rawLanguage =
-      process.env.DB_UTILITY_LANG || process.env.DB_UTILITY_LANGUAGE || process.env.LANG;
+      process.env.DB_UTILITY_LANG ||
+      process.env.DB_UTILITY_LANGUAGE ||
+      process.env.DBUTILITY_LANG ||
+      process.env.DBUTILITY_LANGUAGE ||
+      process.env.LANG;
 
-    const rawIntrospectionOutputDir = process.env.DB_UTILITY_INTROSPECTION_OUTPUT_DIR;
-    const rawMigrationsOutputDir = process.env.DB_UTILITY_MIGRATIONS_OUTPUT_DIR;
-    const rawMigrationsFileNamePattern = process.env.DB_UTILITY_MIGRATIONS_FILE_NAME_PATTERN;
+    const rawIntrospectionOutputDir =
+      process.env.DB_UTILITY_INTROSPECTION_OUTPUT_DIR ||
+      process.env.DBUTILITY_INTROSPECTION_OUTPUT_DIR;
+    const rawMigrationsOutputDir =
+      process.env.DB_UTILITY_MIGRATIONS_OUTPUT_DIR || process.env.DBUTILITY_MIGRATIONS_OUTPUT_DIR;
+    const rawMigrationsFileNamePattern =
+      process.env.DB_UTILITY_MIGRATIONS_FILE_NAME_PATTERN ||
+      process.env.DBUTILITY_MIGRATIONS_FILE_NAME_PATTERN;
+    const rawMigrationsData =
+      process.env.DB_UTILITY_MIGRATIONS_DATA || process.env.DBUTILITY_MIGRATIONS_DATA;
+    const rawMigrationsDataTables =
+      process.env.DB_UTILITY_MIGRATIONS_DATA_TABLES || process.env.DBUTILITY_MIGRATIONS_DATA_TABLES;
+    const rawMigrationsBackup =
+      process.env.DB_UTILITY_MIGRATIONS_BACKUP || process.env.DBUTILITY_MIGRATIONS_BACKUP;
 
     const config: Partial<AppConfig> = {};
 
@@ -122,15 +162,32 @@ export class AppConfigLoader {
       config.introspection = { outputDir: rawIntrospectionOutputDir };
     }
 
-    if (rawMigrationsOutputDir || rawMigrationsFileNamePattern) {
+    if (
+      rawMigrationsOutputDir ||
+      rawMigrationsFileNamePattern ||
+      rawMigrationsData ||
+      rawMigrationsDataTables ||
+      rawMigrationsBackup
+    ) {
       const fileNamePattern: 'timestamp-prefix' | 'prefix-timestamp' =
         rawMigrationsFileNamePattern === 'prefix-timestamp'
           ? 'prefix-timestamp'
           : 'timestamp-prefix';
 
+      const data = rawMigrationsData ? rawMigrationsData === 'true' : undefined;
+
+      const dataTables: (string | DataTableConfig)[] | undefined = rawMigrationsDataTables
+        ? rawMigrationsDataTables.split(',').map((t) => t.trim())
+        : undefined;
+
+      const backup = rawMigrationsBackup ? rawMigrationsBackup === 'true' : undefined;
+
       config.migrations = {
         outputDir: rawMigrationsOutputDir ?? defaultConfig.migrations.outputDir,
         fileNamePattern,
+        ...(data !== undefined ? { data } : {}),
+        ...(dataTables ? { dataTables } : {}),
+        ...(backup !== undefined ? { backup } : {}),
       };
     }
 
@@ -158,6 +215,21 @@ export class AppConfigLoader {
     const fileNamePattern: 'timestamp-prefix' | 'prefix-timestamp' =
       fileNamePatternRaw === 'prefix-timestamp' ? 'prefix-timestamp' : 'timestamp-prefix';
 
+    const data =
+      raw.migrations && raw.migrations.data !== undefined
+        ? raw.migrations.data
+        : defaultConfig.migrations.data;
+
+    const dataTables =
+      raw.migrations && raw.migrations.dataTables
+        ? raw.migrations.dataTables
+        : defaultConfig.migrations.dataTables;
+
+    const backup =
+      raw.migrations && raw.migrations.backup !== undefined
+        ? raw.migrations.backup
+        : defaultConfig.migrations.backup;
+
     return {
       language,
       introspection: {
@@ -166,6 +238,9 @@ export class AppConfigLoader {
       migrations: {
         outputDir: migrationsOutputDir,
         fileNamePattern,
+        data,
+        dataTables,
+        backup,
       },
     };
   }

@@ -55,7 +55,13 @@ El archivo de configuración permite definir el idioma de la CLI, directorios de
   },
   "migrations": {
     "outputDir": "db-utility-migrations",
-    "fileNamePattern": "timestamp-prefix"
+    "fileNamePattern": "timestamp-prefix",
+    "data": true,
+    "dataTables": [
+      "usuarios",
+      { "table": "logs", "where": "nivel = 'ERROR'" }
+    ],
+    "backup": true
   },
   "connection": {
     "type": "postgres",
@@ -86,6 +92,25 @@ El archivo de configuración permite definir el idioma de la CLI, directorios de
     }
   }
 }
+```
+
+### Configuración Avanzada de Extracción de Datos
+
+La opción `dataTables` permite especificar qué tablas deben tener sus datos exportados (para seeds). Puede proporcionar una lista simple de nombres de tablas o un objeto con una cláusula `where` para filtrar los datos.
+
+```json
+"dataTables": [
+  "roles", 
+  "permisos",
+  { 
+    "table": "usuarios", 
+    "where": "activo = 1 AND creado_en > '2023-01-01'" 
+  },
+  {
+    "table": "registros",
+    "where": "nivel = 'ERROR'"
+  }
+]
 ```
 
 ### Múltiples Conexiones
@@ -121,6 +146,15 @@ DB_UTILITY_MIGRATIONS_OUTPUT_DIR=mi-directorio-migrations
 
 # Patrón de Nombre de Archivo de Migración (timestamp-prefix, prefix-timestamp)
 DB_UTILITY_MIGRATIONS_FILE_NAME_PATTERN=prefix-timestamp
+
+# Datos de Migración (true/false)
+DB_UTILITY_MIGRATIONS_DATA=true
+
+# Tablas de Datos para Migración (Separadas por coma)
+DB_UTILITY_MIGRATIONS_DATA_TABLES=usuarios,roles
+
+# Backup de Migración (true/false)
+DB_UTILITY_MIGRATIONS_BACKUP=true
 
 # Conexión a Base de Datos (Fallback/Base)
 DB_TYPE=postgres
@@ -201,9 +235,9 @@ dbutility migrations --target <orm> [opciones] [opciones-conexión]
 |------|-------------|-------------|
 | `--target <target>` | ORM objetivo (`sequelize`, `typeorm`) | Sí |
 | `--output <dir>` | Directorio de salida | No |
-| `--data` | Genera migración de datos (seeds) junto con el esquema | No |
+| `--data` | Genera migración de datos (seeds) junto con el esquema (Sobrescribe configuración) | No |
 | `--only-data` | Genera SOLO migración de datos | No |
-| `--tables <tables>` | Lista de tablas separadas por coma para exportación de datos | Sí (si `--data` o `--only-data`) |
+| `--tables <tables>` | Lista de tablas separadas por coma para exportación de datos (Sobrescribe configuración) | Sí (si `--data` o `--only-data` y no está en la configuración) |
 
 #### `test`
 
@@ -218,7 +252,7 @@ dbutility test --target <orm> [opciones]
 | `--target <target>` | ORM objetivo (`sequelize`, `typeorm`) | Sí |
 | `--dir <dir>` | Directorio conteniendo las migraciones | No |
 | `--engines <engines>` | Imágenes Docker para probar (ej: `postgres:14,mysql:8`) | No |
-| `--backup` | Exporta backup de la base de datos del contenedor después de la prueba | No |
+| `--backup` | Exporta backup de la base de datos del contenedor después de la prueba (Sobrescribe configuración) | No |
 
 ## Ejemplos de Uso
 

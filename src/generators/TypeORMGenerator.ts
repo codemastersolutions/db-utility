@@ -1,4 +1,5 @@
 import { ColumnMetadata, DatabaseSchema, TableData } from '../types/introspection';
+import { filterAutoIncrementColumns } from '../utils/DataUtils';
 import { topologicalSort } from '../utils/topologicalSort';
 import {
   DataMigrationGenerator,
@@ -122,18 +123,38 @@ ${
             timestamp + counter
           }`;
           const seedFileName = `${timestamp + counter}-${seedMigrationName}.ts`;
-          const rowsContent = JSON.stringify(tableData.rows, null, 2);
+          const rows = filterAutoIncrementColumns(tableData);
+          const rowsContent = JSON.stringify(rows, null, 2);
+
+          const autoIncCol = tableData.columns.find((c) => c.isAutoIncrement);
+          const autoIncColName = autoIncCol ? autoIncCol.name : null;
+
+          const preInsert = tableData.disableIdentity
+            ? `
+    if (queryRunner.connection.driver.options.type === 'mssql') {
+      await queryRunner.query('SET IDENTITY_INSERT "${tableData.tableName}" ON');
+    }`
+            : '';
+
+          const postInsert = tableData.disableIdentity
+            ? `
+    if (queryRunner.connection.driver.options.type === 'mssql') {
+      await queryRunner.query('SET IDENTITY_INSERT "${tableData.tableName}" OFF');
+    } else if (queryRunner.connection.driver.options.type === 'postgres' && '${autoIncColName}') {
+      await queryRunner.query('SELECT setval(pg_get_serial_sequence(\\'"${tableData.tableName}"\\', \\'${autoIncColName}\\'), MAX("${autoIncColName}")) FROM "${tableData.tableName}";');
+    }`
+            : '';
 
           const seedContent = `import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class ${seedMigrationName} implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
-    if (${tableData.rows.length} > 0) {
+    if (${rows.length} > 0) {${preInsert}
       await queryRunner.manager.createQueryBuilder()
         .insert()
         .into('${tableData.tableName}')
         .values(${rowsContent})
-        .execute();
+        .execute();${postInsert}
     }
   }
 
@@ -164,18 +185,38 @@ export class ${seedMigrationName} implements MigrationInterface {
       const migrationName = `Seed${this.formatModelName(tableData.tableName)}${timestamp + counter}`;
       const fileName = `${timestamp + counter}-${migrationName}.ts`;
 
-      const rowsContent = JSON.stringify(tableData.rows, null, 2);
+      const rows = filterAutoIncrementColumns(tableData);
+      const rowsContent = JSON.stringify(rows, null, 2);
+
+      const autoIncCol = tableData.columns.find((c) => c.isAutoIncrement);
+      const autoIncColName = autoIncCol ? autoIncCol.name : null;
+
+      const preInsert = tableData.disableIdentity
+        ? `
+    if (queryRunner.connection.driver.options.type === 'mssql') {
+      await queryRunner.query('SET IDENTITY_INSERT "${tableData.tableName}" ON');
+    }`
+        : '';
+
+      const postInsert = tableData.disableIdentity
+        ? `
+    if (queryRunner.connection.driver.options.type === 'mssql') {
+      await queryRunner.query('SET IDENTITY_INSERT "${tableData.tableName}" OFF');
+    } else if (queryRunner.connection.driver.options.type === 'postgres' && '${autoIncColName}') {
+      await queryRunner.query('SELECT setval(pg_get_serial_sequence(\\'"${tableData.tableName}"\\', \\'${autoIncColName}\\'), MAX("${autoIncColName}")) FROM "${tableData.tableName}";');
+    }`
+        : '';
 
       const content = `import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class ${migrationName} implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
-    if (${tableData.rows.length} > 0) {
+    if (${rows.length} > 0) {${preInsert}
       await queryRunner.manager.createQueryBuilder()
         .insert()
         .into('${tableData.tableName}')
         .values(${rowsContent})
-        .execute();
+        .execute();${postInsert}
     }
   }
 
