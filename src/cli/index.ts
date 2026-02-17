@@ -229,8 +229,9 @@ addConnectionOptions(exportCommand)
   .option('--target <target>', 'Target ORM: sequelize, typeorm, prisma, mongoose')
   .option('--output <dir>', 'Output directory')
   .action(async (options: CliOptions) => {
-    if (!options.target) {
-      handleCliError(new Error('Target is required (--target <target>)'));
+    const target = options.target || appConfig.target;
+    if (!target) {
+      handleCliError(new Error('Target is required (use --target or config.target)'));
       return;
     }
 
@@ -240,12 +241,12 @@ addConnectionOptions(exportCommand)
       const service = new IntrospectionService(connector, config);
       const schema = await service.introspect();
 
-      const generator = getGenerator(options.target!);
-      console.log(`Generating models for ${options.target}...`);
+      const generator = getGenerator(target);
+      console.log(`Generating models for ${target}...`);
 
       const files = await generator.generate(schema);
       const baseOutputDir = options.output || join(process.cwd(), 'exports', 'generated-models');
-      const outputDir = join(baseOutputDir, options.target!.toLowerCase());
+      const outputDir = join(baseOutputDir, target.toLowerCase());
 
       GeneratorWriter.write(files, outputDir);
       console.log(`Successfully generated ${files.length} files in ${outputDir}`);
@@ -264,8 +265,9 @@ addConnectionOptions(migrateCommand)
   .option('--only-data', 'Generate only data migration')
   .option('--tables <tables>', 'Comma separated list of tables to export data from')
   .action(async (options: CliOptions) => {
-    if (!options.target) {
-      handleCliError(new Error('Target is required (--target <target>)'));
+    const target = options.target || appConfig.target;
+    if (!target) {
+      handleCliError(new Error('Target is required (use --target or config.target)'));
       return;
     }
 
@@ -275,7 +277,7 @@ addConnectionOptions(migrateCommand)
       const service = new IntrospectionService(connector, config);
       const schema = await service.introspect();
 
-      const generator = getGenerator(options.target!);
+      const generator = getGenerator(target);
 
       // Logic:
       // --only-data: Generate ONLY data migrations (no schema)
@@ -316,17 +318,17 @@ addConnectionOptions(migrateCommand)
       // Priority: Flag > Config > Default
       const baseOutputDir = resolveMigrationOutputDir(process.cwd(), options.output, appConfig);
 
-      const outputDir = join(baseOutputDir, options.target!.toLowerCase());
+      const outputDir = join(baseOutputDir, target.toLowerCase());
 
       if (generateSchema) {
         if (!('generateMigrations' in generator)) {
-          throw new Error(`Target ${options.target} does not support migration generation`);
+          throw new Error(`Target ${target} does not support migration generation`);
         }
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const migrationGenerator = generator as any;
 
-        console.log(`Generating migrations for ${options.target}...`);
+        console.log(`Generating migrations for ${target}...`);
         // Pass extractedData if available (interleaved generation)
         // If generateData is true but we are here, it means we are in the "both" case (options.data)
         // If options.onlyData is true, generateSchema is false, so we won't be here.
@@ -353,10 +355,10 @@ addConnectionOptions(migrateCommand)
       } else if (generateData) {
         // Only data generation (options.onlyData is true)
         if (!('generateDataMigrations' in generator)) {
-          throw new Error(`Target ${options.target} does not support data migration generation`);
+          throw new Error(`Target ${target} does not support data migration generation`);
         }
 
-        console.log(`Generating data migrations for ${options.target}...`);
+        console.log(`Generating data migrations for ${target}...`);
         const dataMigrationGenerator = generator as unknown as DataMigrationGenerator;
         const files = await dataMigrationGenerator.generateDataMigrations(extractedData);
 
@@ -391,8 +393,9 @@ testCommand
   .option('--backup', 'Export database backup from container')
   .action(
     async (options: { target?: string; dir?: string; engines?: string; backup?: boolean }) => {
-      if (!options.target) {
-        handleCliError(new Error('Target is required (--target <target>)'));
+      const target = options.target || appConfig.target;
+      if (!target) {
+        handleCliError(new Error('Target is required (use --target or config.target)'));
         return;
       }
 
@@ -401,7 +404,7 @@ testCommand
         migrationsDir = options.dir;
       } else {
         const baseDir = resolveMigrationOutputDir(process.cwd(), undefined, appConfig);
-        migrationsDir = join(baseDir, options.target.toLowerCase());
+        migrationsDir = join(baseDir, target.toLowerCase());
       }
 
       const engines = options.engines ? options.engines.split(',').map((e) => e.trim()) : undefined;
@@ -411,7 +414,7 @@ testCommand
 
       try {
         const backup = options.backup ?? appConfig.migrations.backup;
-        await tester.test(options.target, migrationsDir, engines, backup);
+        await tester.test(target, migrationsDir, engines, backup);
       } catch (error) {
         handleCliError(error);
       }

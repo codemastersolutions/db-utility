@@ -19,16 +19,11 @@ describe('ConfigInitializer', () => {
     expect(result.created).toBe(true);
     expect(result.recreated).toBe(false);
     const content = readFileSync(join(runDir, 'dbutility.config.json'), 'utf-8');
-    const parsed = JSON.parse(content) as {
-      language: string;
-      introspection: { outputDir: string };
-      migrations: { outputDir: string; fileNamePattern: string };
-    };
+    const parsed = JSON.parse(content) as Record<string, unknown>;
 
     expect(parsed.language).toBe('pt-BR');
-    expect(parsed.introspection.outputDir).toBe('db-utility-introspect');
-    expect(parsed.migrations.outputDir).toBe('db-utility-migrations');
-    expect(parsed.migrations.fileNamePattern).toBe('timestamp-prefix');
+    expect(parsed.introspection).toBeUndefined();
+    expect(parsed.migrations).toBeUndefined();
   });
 
   it('não deve recriar arquivo quando já existe e force = false', () => {

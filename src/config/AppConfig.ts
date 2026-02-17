@@ -15,11 +15,12 @@ export interface DataTableConfig {
 
 export interface AppConfig {
   language: AppLanguage;
+  target?: string;
   introspection: {
     outputDir: string;
   };
   migrations: {
-    outputDir: string;
+    outputDir?: string;
     fileNamePattern: 'timestamp-prefix' | 'prefix-timestamp';
     data?: boolean;
     dataTables?: (string | DataTableConfig)[];
@@ -67,6 +68,7 @@ export class AppConfigLoader {
     // Merge: File > Env > Default (via normalize)
     const merged: Partial<AppConfig> = {
       language: fromFile.language || fromEnv.language,
+      target: fromFile.target || fromEnv.target,
     };
 
     const envIntrospection = fromEnv.introspection;
@@ -103,8 +105,8 @@ export class AppConfigLoader {
           : 'timestamp-prefix';
 
       merged.migrations = {
-        outputDir: migrationsOutputDir ?? defaultConfig.migrations.outputDir,
         fileNamePattern,
+        ...(migrationsOutputDir ? { outputDir: migrationsOutputDir } : {}),
         ...(migrationsData !== undefined ? { data: migrationsData } : {}),
         ...(migrationsDataTables ? { dataTables: migrationsDataTables } : {}),
         ...(migrationsBackup !== undefined ? { backup: migrationsBackup } : {}),
@@ -136,6 +138,7 @@ export class AppConfigLoader {
       process.env.DBUTILITY_LANG ||
       process.env.DBUTILITY_LANGUAGE ||
       process.env.LANG;
+    const rawTarget = process.env.DB_UTILITY_TARGET || process.env.DBUTILITY_TARGET;
 
     const rawIntrospectionOutputDir =
       process.env.DB_UTILITY_INTROSPECTION_OUTPUT_DIR ||
@@ -156,6 +159,9 @@ export class AppConfigLoader {
 
     if (rawLanguage) {
       config.language = this.normalizeLanguage(rawLanguage);
+    }
+    if (rawTarget) {
+      config.target = rawTarget;
     }
 
     if (rawIntrospectionOutputDir) {
@@ -183,8 +189,8 @@ export class AppConfigLoader {
       const backup = rawMigrationsBackup ? rawMigrationsBackup === 'true' : undefined;
 
       config.migrations = {
-        outputDir: rawMigrationsOutputDir ?? defaultConfig.migrations.outputDir,
         fileNamePattern,
+        ...(rawMigrationsOutputDir ? { outputDir: rawMigrationsOutputDir } : {}),
         ...(data !== undefined ? { data } : {}),
         ...(dataTables ? { dataTables } : {}),
         ...(backup !== undefined ? { backup } : {}),
@@ -196,6 +202,7 @@ export class AppConfigLoader {
 
   private static normalize(raw: Partial<AppConfig>): AppConfig {
     const language = raw.language ? this.normalizeLanguage(raw.language) : defaultConfig.language;
+    const target = raw.target;
 
     const introspectionOutputDir =
       raw.introspection && raw.introspection.outputDir
@@ -203,9 +210,7 @@ export class AppConfigLoader {
         : defaultConfig.introspection.outputDir;
 
     const migrationsOutputDir =
-      raw.migrations && raw.migrations.outputDir
-        ? raw.migrations.outputDir
-        : defaultConfig.migrations.outputDir;
+      raw.migrations && raw.migrations.outputDir ? raw.migrations.outputDir : undefined;
 
     const fileNamePatternRaw =
       raw.migrations && raw.migrations.fileNamePattern
@@ -232,15 +237,16 @@ export class AppConfigLoader {
 
     return {
       language,
+      ...(target ? { target } : {}),
       introspection: {
         outputDir: introspectionOutputDir,
       },
       migrations: {
-        outputDir: migrationsOutputDir,
         fileNamePattern,
         data,
         dataTables,
         backup,
+        ...(migrationsOutputDir ? { outputDir: migrationsOutputDir } : {}),
       },
     };
   }

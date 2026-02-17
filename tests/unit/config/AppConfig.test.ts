@@ -24,7 +24,6 @@ describe('AppConfigLoader', () => {
 
     expect(config.language).toBe('pt-BR');
     expect(config.introspection.outputDir).toBe('db-utility-introspect');
-    expect(config.migrations.outputDir).toBe('db-utility-migrations');
     expect(config.migrations.fileNamePattern).toBe('timestamp-prefix');
   });
 

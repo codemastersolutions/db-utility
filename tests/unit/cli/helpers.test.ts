@@ -25,6 +25,6 @@ describe('CLI Helpers - resolveMigrationOutputDir', () => {
     // Simulando um AppConfig vazio ou sem migrations (embora o loader garanta defaults, é bom testar o fallback da função)
     const emptyConfig = { ...mockAppConfig, migrations: undefined } as unknown as AppConfig;
     const result = resolveMigrationOutputDir(cwd, undefined, emptyConfig);
-    expect(result).toBe(join(cwd, 'exports', 'generated-migrations'));
+    expect(result).toBe(join(cwd, 'exports', 'migration'));
   });
 });
