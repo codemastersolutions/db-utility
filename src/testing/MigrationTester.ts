@@ -1,5 +1,5 @@
 import { join } from 'path';
-import { existsSync, readFileSync, mkdirSync, chmodSync } from 'fs';
+import { existsSync, readFileSync, mkdirSync, chmodSync, unlinkSync } from 'fs';
 import { ContainerManager } from './ContainerManager';
 import { MigrationRunner } from './runners/MigrationRunner';
 import { SequelizeRunner } from './runners/SequelizeRunner';
@@ -351,6 +351,21 @@ export class MigrationTester {
 
       if (backup && containerId) {
         console.log('Exporting database backup...');
+        const friendlyName = this.getFriendlyName(engine.type, engine.version);
+        const backupDir = join(process.cwd(), 'exports', 'backups', friendlyName);
+        const backupExt = engine.type === 'mssql' ? 'bak' : 'sql';
+        const backupFile = join(backupDir, `${dbName}.${backupExt}`);
+
+        try {
+          if (existsSync(backupFile)) {
+            unlinkSync(backupFile);
+          }
+        } catch (e) {
+          console.warn(
+            `Failed to remove previous backup ${backupFile}: ${e instanceof Error ? e.message : String(e)}`,
+          );
+        }
+
         if (engine.type === 'mssql') {
           // Check for sqlcmd location (ODBC 18 uses mssql-tools18 and requires -C for TrustServerCertificate)
           let sqlCmdPath = '/opt/mssql-tools/bin/sqlcmd';
@@ -385,7 +400,7 @@ export class MigrationTester {
           );
         }
         console.log(
-          `Backup exported to exports/${dbName}.${engine.type === 'mssql' ? 'bak' : 'sql'}`,
+          `Backup exported to ${join('exports', 'backups', friendlyName, `${dbName}.${backupExt}`)}`,
         );
       }
 
