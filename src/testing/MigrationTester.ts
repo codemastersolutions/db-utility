@@ -146,11 +146,42 @@ export class MigrationTester {
   }
 
   private async ensureOrmInstalled(target: string): Promise<InstallConfig> {
+    const cwd = process.cwd();
+    const pkgPath = join(cwd, 'package.json');
+    let hasPackageJson = false;
+    let hasOrmInPackageJson = false;
+
+    if (existsSync(pkgPath)) {
+      hasPackageJson = true;
+      try {
+        const pkgRaw = readFileSync(pkgPath, 'utf-8');
+        const pkg = JSON.parse(pkgRaw);
+        const deps = {
+          ...(pkg.dependencies || {}),
+          ...(pkg.devDependencies || {}),
+          ...(pkg.peerDependencies || {}),
+        };
+        hasOrmInPackageJson = !!deps[target];
+      } catch (e) {
+        console.warn(
+          `Failed to read or parse package.json: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+    }
+
     const isInstalledLocal = await this.packageManager.isInstalled(target, 'local');
     const isInstalledGlobal = await this.packageManager.isInstalled(target, 'global');
 
-    if (isInstalledLocal || isInstalledGlobal) {
-      // If installed, we just run once with "current" version
+    if (hasPackageJson && hasOrmInPackageJson && isInstalledLocal) {
+      return {
+        versions: ['current'],
+        shouldInstall: false,
+        scope: 'dependencies',
+        shouldUninstall: false,
+      };
+    }
+
+    if (!hasPackageJson && (isInstalledLocal || isInstalledGlobal)) {
       return {
         versions: ['current'],
         shouldInstall: false,
@@ -275,6 +306,23 @@ export class MigrationTester {
     }
   }
 
+  private async ensureDialectDependencies(target: string, type: DatabaseType): Promise<void> {
+    const normalizedTarget = target.toLowerCase();
+
+    if (normalizedTarget === 'sequelize' && type === 'mssql') {
+      const isSequelizeGlobal = await this.packageManager.isInstalled('sequelize', 'global');
+      const scope: InstallScope = isSequelizeGlobal ? 'global' : 'devDependencies';
+      const isTediousInstalled = await this.packageManager.isInstalled(
+        'tedious',
+        isSequelizeGlobal ? 'global' : 'local',
+      );
+
+      if (!isTediousInstalled) {
+        await this.packageManager.install('tedious', { scope });
+      }
+    }
+  }
+
   private async runTest(
     target: string,
     migrationsDir: string,
@@ -291,6 +339,8 @@ export class MigrationTester {
     let containerId: string | null = null;
 
     try {
+      await this.ensureDialectDependencies(target, engine.type);
+
       console.log(`Starting container ${image} on port ${port}...`);
       let volumes: Record<string, string> | undefined;
       console.log('Backup flag:', backup);

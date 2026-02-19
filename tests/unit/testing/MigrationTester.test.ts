@@ -17,6 +17,16 @@ vi.mock('fs', () => ({
 vi.mock('../../../src/testing/runners/SequelizeRunner');
 vi.mock('../../../src/testing/runners/TypeORMRunner');
 vi.mock('../../../src/utils/PackageManager');
+vi.mock('inquirer', () => ({
+  default: {
+    prompt: vi.fn().mockResolvedValue({
+      install: true,
+      scope: 'global',
+      versionInput: '6',
+      uninstall: true,
+    }),
+  },
+}));
 
 describe('MigrationTester', () => {
   let containerManager: ContainerManager;
@@ -27,7 +37,7 @@ describe('MigrationTester', () => {
     containerManager = new ContainerManager();
 
     mockPackageManager = {
-      isInstalled: vi.fn().mockResolvedValue(true),
+      isInstalled: vi.fn().mockResolvedValue(false),
       install: vi.fn().mockResolvedValue(undefined),
       uninstall: vi.fn().mockResolvedValue(undefined),
       getGlobalInstallPath: vi.fn().mockResolvedValue('/global/path'),
@@ -75,6 +85,12 @@ describe('MigrationTester', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     const tableSpy = vi.spyOn(console, 'table').mockImplementation(() => {});
 
+    (fs.existsSync as any).mockImplementation((path: string) => {
+      if (path.endsWith('package.json')) return false;
+      if (path.endsWith('database-info.json')) return false;
+      return false;
+    });
+
     await tester.test('sequelize', 'dir', ['postgres:14']);
 
     // Debug failure
@@ -107,7 +123,11 @@ describe('MigrationTester', () => {
       return mockRunner;
     });
 
-    (fs.existsSync as any).mockReturnValue(true);
+    (fs.existsSync as any).mockImplementation((path: string) => {
+      if (path.endsWith('database-info.json')) return true;
+      if (path.endsWith('package.json')) return false;
+      return false;
+    });
     (fs.readFileSync as any).mockReturnValue(JSON.stringify({ type: 'postgres', version: '14.5' }));
 
     vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -142,6 +162,11 @@ describe('MigrationTester', () => {
     };
     (SequelizeRunner as any).mockImplementation(function () {
       return mockRunner;
+    });
+
+    (fs.existsSync as any).mockImplementation((path: string) => {
+      if (path.endsWith('package.json')) return false;
+      return false;
     });
 
     vi.spyOn(console, 'log').mockImplementation(() => {});

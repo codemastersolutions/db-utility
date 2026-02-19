@@ -435,4 +435,6 @@ if (rootOptions.init && !hasSubCommand) {
   } else {
     console.log(messages.cli.initAlreadyExists(result.path));
   }
+} else if (!hasSubCommand) {
+  program.help({ error: false });
 }
