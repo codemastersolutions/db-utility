@@ -7,6 +7,15 @@ const execAsync = promisify(exec);
 export type InstallScope = 'global' | 'dependencies' | 'devDependencies';
 
 export class PackageManager {
+  private async detectPm(): Promise<'pnpm' | 'npm'> {
+    try {
+      await execAsync('pnpm --version');
+      return 'pnpm';
+    } catch {
+      return 'npm';
+    }
+  }
+
   /**
    * Checks if a package is installed.
    * For global, checks `npm list -g`.
@@ -14,8 +23,13 @@ export class PackageManager {
    */
   async isInstalled(packageName: string, scope: 'global' | 'local' = 'local'): Promise<boolean> {
     if (scope === 'global') {
+      const pm = await this.detectPm();
+      const command =
+        pm === 'pnpm'
+          ? `pnpm ls -g ${packageName} --depth=0`
+          : `npm list -g ${packageName} --depth=0`;
       try {
-        await execAsync(`npm list -g ${packageName} --depth=0`);
+        await execAsync(command);
         return true;
       } catch {
         return false;
@@ -40,10 +54,15 @@ export class PackageManager {
     scope: 'global' | 'local' = 'local',
   ): Promise<string | null> {
     if (scope === 'global') {
+      const pm = await this.detectPm();
+      const command =
+        pm === 'pnpm'
+          ? `pnpm ls -g ${packageName} --depth=0 --json`
+          : `npm list -g ${packageName} --depth=0 --json`;
       try {
-        const { stdout } = await execAsync(`npm list -g ${packageName} --depth=0 --json`);
+        const { stdout } = await execAsync(command);
         const result = JSON.parse(stdout);
-        return result.dependencies?.[packageName]?.version || null;
+        return result.dependencies?.[packageName]?.version || result.version || null;
       } catch {
         return null;
       }
@@ -57,7 +76,12 @@ export class PackageManager {
       } catch {
         // Fallback to npm list
         try {
-          const { stdout } = await execAsync(`npm list ${packageName} --depth=0 --json`);
+          const pm = await this.detectPm();
+          const command =
+            pm === 'pnpm'
+              ? `pnpm ls ${packageName} --depth=0 --json`
+              : `npm list ${packageName} --depth=0 --json`;
+          const { stdout } = await execAsync(command);
           const result = JSON.parse(stdout);
           return result.dependencies?.[packageName]?.version || null;
         } catch {
@@ -77,13 +101,21 @@ export class PackageManager {
     const { scope, version } = options;
     const pkgWithVersion = version ? `${packageName}@${version}` : packageName;
 
-    let command = 'npm install';
-    if (scope === 'global') {
-      command += ` -g ${pkgWithVersion}`;
-    } else if (scope === 'devDependencies') {
-      command += ` --save-dev ${pkgWithVersion}`;
+    const pm = await this.detectPm();
+    let command: string;
+    if (pm === 'pnpm') {
+      if (scope === 'global') command = `pnpm add -g ${pkgWithVersion}`;
+      else if (scope === 'devDependencies') command = `pnpm add -D ${pkgWithVersion}`;
+      else command = `pnpm add ${pkgWithVersion}`;
     } else {
-      command += ` --save ${pkgWithVersion}`;
+      command = 'npm install';
+      if (scope === 'global') {
+        command += ` -g ${pkgWithVersion}`;
+      } else if (scope === 'devDependencies') {
+        command += ` --save-dev ${pkgWithVersion}`;
+      } else {
+        command += ` --save ${pkgWithVersion}`;
+      }
     }
 
     console.log(`Installing ${pkgWithVersion} (${scope})...`);
@@ -95,11 +127,18 @@ export class PackageManager {
    * Uninstalls a package.
    */
   async uninstall(packageName: string, scope: InstallScope | 'local'): Promise<void> {
-    let command = 'npm uninstall';
-    if (scope === 'global') {
-      command += ` -g ${packageName}`;
+    const pm = await this.detectPm();
+    let command: string;
+    if (pm === 'pnpm') {
+      if (scope === 'global') command = `pnpm remove -g ${packageName}`;
+      else command = `pnpm remove ${packageName}`;
     } else {
-      command += ` ${packageName}`;
+      command = 'npm uninstall';
+      if (scope === 'global') {
+        command += ` -g ${packageName}`;
+      } else {
+        command += ` ${packageName}`;
+      }
     }
 
     console.log(`Uninstalling ${packageName}...`);
@@ -108,7 +147,8 @@ export class PackageManager {
   }
 
   async getGlobalInstallPath(): Promise<string> {
-    const { stdout } = await execAsync('npm root -g');
+    const pm = await this.detectPm();
+    const { stdout } = await execAsync(pm === 'pnpm' ? 'pnpm root -g' : 'npm root -g');
     return stdout.trim();
   }
 
@@ -121,7 +161,10 @@ export class PackageManager {
   async resolveVersion(packageName: string, versionInput: string): Promise<string | null> {
     try {
       // Use npm view to find versions
-      const { stdout } = await execAsync(`npm view ${packageName} versions --json`);
+      const pm = await this.detectPm();
+      const { stdout } = await execAsync(
+        `${pm} view ${packageName} versions --json`,
+      );
       const versions: string[] = JSON.parse(stdout);
 
       // Filter versions starting with versionInput
@@ -156,7 +199,7 @@ export class PackageManager {
 
       try {
         const { stdout: resolvedVersion } = await execAsync(
-          `npm view ${packageName}@${versionInput} version`,
+          `${pm} view ${packageName}@${versionInput} version`,
         );
         return resolvedVersion.trim();
       } catch {

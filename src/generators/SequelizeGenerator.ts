@@ -61,15 +61,13 @@ ${table.columns.map((c) => this.generateColumnDefinition(c)).join(',\n')}
       const migrationName = `${timestamp}${paddedCounter}-create-${table.name}.js`;
 
       const tableData = data?.find((d) => d.tableName.toLowerCase() === table.name.toLowerCase());
-      const disableIdentity = tableData?.disableIdentity ?? false;
-
       const hasAutoIncrement = table.columns.some((c) => c.isAutoIncrement);
 
       const createTablePart = `await queryInterface.createTable('${table.name}', {
-${table.columns.map((c) => this.generateMigrationColumn(c, !hasAutoIncrement || disableIdentity, disableIdentity)).join(',\n')}
+${table.columns.map((c) => this.generateMigrationColumn(c, !hasAutoIncrement, false)).join(',\n')}
     });`;
 
-      const pkConstraintsPart = !hasAutoIncrement && !disableIdentity
+      const pkConstraintsPart = !hasAutoIncrement
         ? table.indexes
             .filter((idx) => idx.isPrimary)
             .map(
@@ -113,51 +111,6 @@ module.exports = {
         fileName: migrationName,
         content,
       });
-
-      // 1.5 Add PKs if disableIdentity is true
-      if (disableIdentity) {
-        counter++;
-        const pkPaddedCounter = String(counter).padStart(6, '0');
-        const pkMigrationName = `${timestamp}${pkPaddedCounter}-add-pks-${table.name}.js`;
-
-        const pkContent = `'use strict';
-
-module.exports = {
-  async up(queryInterface, Sequelize) {
-    try {
-      ${table.indexes
-        .filter((idx) => idx.isPrimary)
-        .map(
-          (idx) =>
-            `await queryInterface.addConstraint('${table.name}', {
-        fields: ['${idx.columns.join("','")}'],
-        type: 'primary key',
-        name: '${idx.name}'
-      });`,
-        )
-        .join('\n      ')}
-    } catch (error) {
-      console.warn('Skipping PK creation for table ${table.name} due to error:', error.message);
-    }
-  },
-
-  async down(queryInterface, Sequelize) {
-    try {
-      ${table.indexes
-        .filter((idx) => idx.isPrimary)
-        .map((idx) => `await queryInterface.removeConstraint('${table.name}', '${idx.name}');`)
-        .join('\n      ')}
-    } catch (error) {
-      console.warn('Skipping PK removal for table ${table.name} due to error:', error.message);
-    }
-  }
-};
-`;
-        files.push({
-          fileName: pkMigrationName,
-          content: pkContent,
-        });
-      }
 
       // 2. Add Foreign Keys
       if (table.foreignKeys.length > 0) {
@@ -208,10 +161,9 @@ module.exports = {
         });
       }
 
-      // Check if there is data to be seeded for this table
       if (data) {
-        // We already have tableData from earlier
         if (tableData) {
+          const disableIdentity = tableData.disableIdentity ?? false;
           counter++;
           const seedPaddedCounter = String(counter).padStart(6, '0');
           const seedMigrationName = `${timestamp}${seedPaddedCounter}-seed-${table.name}.js`;
@@ -225,25 +177,61 @@ module.exports = {
             rows.length > 0 &&
             Object.prototype.hasOwnProperty.call(rows[0], autoIncColName);
 
-          // Only use SET IDENTITY_INSERT if we have auto-inc data AND we didn't disable identity creation
-          const enableIdentity = hasAutoIncInData && !disableIdentity;
+          const useIdentityInsert = disableIdentity && !!hasAutoIncInData && !!autoIncColName;
+          const usePostgresSequenceReset =
+            disableIdentity && !!hasAutoIncInData && !!autoIncColName;
 
-          const preInsert = enableIdentity
-            ? `
-        const dialect = queryInterface.sequelize.getDialect();
-        if (dialect === 'mssql') {
-          await queryInterface.sequelize.query('SET IDENTITY_INSERT "${table.name}" ON', { transaction });
-        }`
-            : '';
+          let mssqlBatch = '';
+          if (useIdentityInsert) {
+            const statements = rows
+              .map((row) => {
+                const columns = Object.keys(row)
+                  .map((c) => `[${c}]`)
+                  .join(', ');
+                const values = Object.values(row)
+                  .map((value) => {
+                    if (value === null || value === undefined) return 'NULL';
+                    let normalized = value as unknown as string | number | boolean | Date | null;
+                    if (normalized instanceof Date) {
+                      normalized = normalized.toISOString();
+                    } else if (typeof normalized === 'boolean') {
+                      normalized = normalized ? 1 : 0;
+                    }
+                    const escaped = String(normalized).replace(/'/g, "''");
+                    return `'${escaped}'`;
+                  })
+                  .join(', ');
+                return `INSERT INTO [${table.name}] (${columns}) VALUES (${values});`;
+              })
+              .join('\\n');
+            mssqlBatch = `SET IDENTITY_INSERT [${table.name}] ON;\\n${statements}\\nSET IDENTITY_INSERT [${table.name}] OFF;`;
+          }
 
-          const postInsertSimplified = enableIdentity
+          const identityInsertBlock = useIdentityInsert
             ? `
-        if (dialect === 'mssql') {
-          await queryInterface.sequelize.query('SET IDENTITY_INSERT "${table.name}" OFF', { transaction });
-        } else if (dialect === 'postgres' && '${autoIncColName}') {
-          await queryInterface.sequelize.query('SELECT setval(pg_get_serial_sequence(\\'"${table.name}"\\', \\'${autoIncColName}\\'), MAX("${autoIncColName}")) FROM "${table.name}";', { transaction });
-        }`
-            : '';
+      if (dialect === 'mssql') {
+        const sql = \`${mssqlBatch}\`;
+        await queryInterface.sequelize.query(sql);
+      } else {
+        await queryInterface.sequelize.transaction(async (transaction) => {
+          for (const row of data) {
+            await queryInterface.bulkInsert('${table.name}', [row], { transaction });
+          }${
+            usePostgresSequenceReset && autoIncColName
+              ? `
+          if (dialect === 'postgres') {
+            await queryInterface.sequelize.query('SELECT setval(pg_get_serial_sequence(\\'"${table.name}"\\', \\'${autoIncColName}\\'), MAX("${autoIncColName}")) FROM "${table.name}";', { transaction });
+          }`
+              : ''
+          }
+        });
+      }`
+            : `
+      await queryInterface.sequelize.transaction(async (transaction) => {
+        for (const row of data) {
+          await queryInterface.bulkInsert('${table.name}', [row], { transaction });
+        }
+      });`;
 
           const seedContent = `'use strict';
 
@@ -251,11 +239,7 @@ module.exports = {
   async up(queryInterface, Sequelize) {
     const data = ${rowsContent};
     if (data.length > 0) {
-      await queryInterface.sequelize.transaction(async (transaction) => {${preInsert}
-        for (const row of data) {
-          await queryInterface.bulkInsert('${table.name}', [row], { transaction });
-        }${postInsertSimplified}
-      });
+      const dialect = queryInterface.sequelize.getDialect();${identityInsertBlock}
     }
   },
 
@@ -268,51 +252,6 @@ module.exports = {
             fileName: seedMigrationName,
             content: seedContent,
           });
-
-          // 4. Enable Identity if it was disabled
-           if (disableIdentity && hasAutoIncrement && autoIncColName && autoIncCol) {
-             counter++;
-             const enableIdPaddedCounter = String(counter).padStart(6, '0');
-             const enableIdMigrationName = `${timestamp}${enableIdPaddedCounter}-enable-identity-${table.name}.js`;
-
-             const type = this.mapType(autoIncCol).replace('DataTypes.', 'Sequelize.');
-
-             const enableIdContent = `'use strict';
-
- module.exports = {
-   async up(queryInterface, Sequelize) {
-     const dialect = queryInterface.sequelize.getDialect();
-     try {
-         if (dialect === 'postgres' || dialect === 'mysql') {
-             await queryInterface.changeColumn('${table.name}', '${autoIncColName}', {
-                 type: ${type},
-                 autoIncrement: true,
-                 primaryKey: ${autoIncCol.isPrimaryKey},
-                 allowNull: ${!autoIncCol.isNullable},
-                 unique: ${autoIncCol.isUnique}
-             });
-
-             if (dialect === 'postgres') {
-                 await queryInterface.sequelize.query('SELECT setval(pg_get_serial_sequence(\\'"${table.name}"\\', \\'${autoIncColName}\\'), MAX("${autoIncColName}")) FROM "${table.name}";');
-             }
-         } else {
-              console.warn('Enabling identity for ${table.name} is not fully supported for this dialect in this migration step.');
-         }
-     } catch (error) {
-         console.warn('Error enabling identity for ${table.name}:', error.message);
-     }
-   },
-
-   async down(queryInterface, Sequelize) {
-     // Reverting identity change is complex and might not be needed for basic rollback
-   }
- };
- `;
-             files.push({
-                 fileName: enableIdMigrationName,
-                 content: enableIdContent
-             });
-           }
         }
       }
     }
@@ -341,6 +280,66 @@ module.exports = {
 
       const autoIncCol = tableData.columns.find((c) => c.isAutoIncrement);
       const autoIncColName = autoIncCol ? autoIncCol.name : null;
+      const hasAutoIncInData =
+        autoIncColName &&
+        rows.length > 0 &&
+        Object.prototype.hasOwnProperty.call(rows[0], autoIncColName);
+
+      const disableIdentity = tableData.disableIdentity ?? false;
+      const useIdentityInsert = disableIdentity && !!hasAutoIncInData && !!autoIncColName;
+      const usePostgresSequenceReset = disableIdentity && !!hasAutoIncInData && !!autoIncColName;
+
+      let mssqlBatch = '';
+      if (useIdentityInsert) {
+        const statements = rows
+          .map((row) => {
+            const columns = Object.keys(row)
+              .map((c) => `[${c}]`)
+              .join(', ');
+            const values = Object.values(row)
+              .map((value) => {
+                if (value === null || value === undefined) return 'NULL';
+                let normalized = value as unknown as string | number | boolean | Date | null;
+                if (normalized instanceof Date) {
+                  normalized = normalized.toISOString();
+                } else if (typeof normalized === 'boolean') {
+                  normalized = normalized ? 1 : 0;
+                }
+                const escaped = String(normalized).replace(/'/g, "''");
+                return `'${escaped}'`;
+              })
+              .join(', ');
+            return `INSERT INTO [${tableData.tableName}] (${columns}) VALUES (${values});`;
+          })
+          .join('\\n');
+        mssqlBatch = `SET IDENTITY_INSERT [${tableData.tableName}] ON;\\n${statements}\\nSET IDENTITY_INSERT [${tableData.tableName}] OFF;`;
+      }
+
+      const identityInsertBlock = useIdentityInsert
+        ? `
+      if (dialect === 'mssql') {
+        const sql = \`${mssqlBatch}\`;
+        await queryInterface.sequelize.query(sql);
+      } else {
+        await queryInterface.sequelize.transaction(async (transaction) => {
+          for (const row of data) {
+            await queryInterface.bulkInsert('${tableData.tableName}', [row], { transaction });
+          }${
+            usePostgresSequenceReset && autoIncColName
+              ? `
+          if (dialect === 'postgres') {
+            await queryInterface.sequelize.query('SELECT setval(pg_get_serial_sequence(\\'"${tableData.tableName}"\\', \\'${autoIncColName}\\'), MAX("${autoIncColName}")) FROM "${tableData.tableName}";', { transaction });
+          }`
+              : ''
+          }
+        });
+      }`
+        : `
+      await queryInterface.sequelize.transaction(async (transaction) => {
+        for (const row of data) {
+          await queryInterface.bulkInsert('${tableData.tableName}', [row], { transaction });
+        }
+      });`;
 
       const content = `'use strict';
 
@@ -348,11 +347,7 @@ module.exports = {
   async up(queryInterface, Sequelize) {
     const data = ${rowsContent};
     if (data.length > 0) {
-      await queryInterface.sequelize.transaction(async (transaction) => {
-        for (const row of data) {
-          await queryInterface.bulkInsert('${tableData.tableName}', [row], { transaction });
-        }
-      });
+      const dialect = queryInterface.sequelize.getDialect();${identityInsertBlock}
     }
   },
 
@@ -365,50 +360,6 @@ module.exports = {
         fileName: migrationName,
         content,
       });
-
-      if (tableData.disableIdentity && autoIncColName && autoIncCol) {
-        counter++;
-        const enableIdPaddedCounter = String(counter).padStart(6, '0');
-        const enableIdMigrationName = `${timestamp}${enableIdPaddedCounter}-enable-identity-${tableData.tableName}.js`;
-
-        const type = this.mapType(autoIncCol).replace('DataTypes.', 'Sequelize.');
-
-        const enableIdContent = `'use strict';
-
-module.exports = {
-  async up(queryInterface, Sequelize) {
-    const dialect = queryInterface.sequelize.getDialect();
-    try {
-        if (dialect === 'postgres' || dialect === 'mysql') {
-            await queryInterface.changeColumn('${tableData.tableName}', '${autoIncColName}', {
-                type: ${type},
-                autoIncrement: true,
-                primaryKey: ${autoIncCol.isPrimaryKey},
-                allowNull: ${!autoIncCol.isNullable},
-                unique: ${autoIncCol.isUnique}
-            });
-
-            if (dialect === 'postgres') {
-                await queryInterface.sequelize.query('SELECT setval(pg_get_serial_sequence(\\'"${tableData.tableName}"\\', \\'${autoIncColName}\\'), MAX("${autoIncColName}")) FROM "${tableData.tableName}";');
-            }
-        } else {
-             console.warn('Enabling identity for ${tableData.tableName} is not fully supported for this dialect in this migration step.');
-        }
-    } catch (error) {
-        console.warn('Error enabling identity for ${tableData.tableName}:', error.message);
-    }
-  },
-
-  async down(queryInterface, Sequelize) {
-    // Reverting identity change is complex and might not be needed for basic rollback
-  }
-};
-`;
-        files.push({
-          fileName: enableIdMigrationName,
-          content: enableIdContent,
-        });
-      }
     }
 
     return files;

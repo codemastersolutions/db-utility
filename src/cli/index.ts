@@ -21,6 +21,7 @@ import { IntrospectionService } from '../introspection/IntrospectionService';
 import { ContainerManager } from '../testing/ContainerManager';
 import { MigrationTester } from '../testing/MigrationTester';
 import { DatabaseConfig, DatabaseType, IDatabaseConnector } from '../types/database';
+import { TableData, ColumnMetadata } from '../types/introspection';
 
 const appConfig = AppConfigLoader.load();
 const messages = getMessages(appConfig.language);
@@ -351,6 +352,8 @@ addConnectionOptions(migrateCommand)
           outputDir,
         );
 
+        // Identity handling is embedded in the generated seed migrations
+
         console.log(`Successfully generated ${files.length} migration files in ${outputDir}`);
       } else if (generateData) {
         // Only data generation (options.onlyData is true)
@@ -375,6 +378,8 @@ addConnectionOptions(migrateCommand)
           ],
           outputDir,
         );
+
+        // Identity handling is embedded in the generated seed migrations
 
         console.log(`Successfully generated ${files.length} seed files in ${outputDir}`);
       }

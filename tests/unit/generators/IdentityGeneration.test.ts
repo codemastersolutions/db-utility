@@ -43,25 +43,16 @@ describe('Identity Generation', () => {
     },
   ];
 
-  it('SequelizeGenerator should generate separate Enable Identity migration when disableIdentity is true', async () => {
+  it('SequelizeGenerator should generate seed migration with identity handling when disableIdentity is true', async () => {
     const generator = new SequelizeGenerator();
     const files = await generator.generateDataMigrations(mockData);
 
-    // Should have 2 files: Seed and EnableIdentity
-    expect(files.length).toBe(2);
+    expect(files.length).toBe(1);
 
-    // Check Seed File
     const seedContent = files[0].content;
     expect(files[0].fileName).toContain('seed-Users.js');
-    expect(seedContent).not.toContain('SET IDENTITY_INSERT'); // Should NOT have identity insert
-    expect(seedContent).not.toContain('setval'); // Should NOT have setval
-
-    // Check Enable Identity File
-    const enableIdentityContent = files[1].content;
-    expect(files[1].fileName).toContain('enable-identity-Users.js');
-    expect(enableIdentityContent).toContain("dialect === 'postgres'");
-    expect(enableIdentityContent).toContain('changeColumn');
-    expect(enableIdentityContent).toContain('SELECT setval');
+    expect(seedContent).toContain('SET IDENTITY_INSERT "Users" ON;');
+    expect(seedContent).toContain('SET IDENTITY_INSERT "Users" OFF;');
   });
 
   it('TypeORMGenerator should include identity reset for Postgres when disableIdentity is true', async () => {
