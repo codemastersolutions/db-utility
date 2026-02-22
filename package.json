@@ -1,6 +1,6 @@
 {
   "name": "@codemastersolutions/db-utility",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "description": "Database utility for migrations, seeders, factories, introspection and more...",
   "files": [
     "dist",
