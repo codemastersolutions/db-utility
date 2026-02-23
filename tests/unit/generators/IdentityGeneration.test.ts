@@ -51,8 +51,10 @@ describe('Identity Generation', () => {
 
     const seedContent = files[0].content;
     expect(files[0].fileName).toContain('seed-Users.js');
-    expect(seedContent).toContain('SET IDENTITY_INSERT "Users" ON;');
-    expect(seedContent).toContain('SET IDENTITY_INSERT "Users" OFF;');
+    expect(seedContent).toContain('const dialect = queryInterface.sequelize.getDialect();');
+    expect(seedContent).toContain("if (dialect === 'mssql')");
+    expect(seedContent).toContain('SET IDENTITY_INSERT [Users] ON;');
+    expect(seedContent).toContain('SET IDENTITY_INSERT [Users] OFF;');
   });
 
   it('TypeORMGenerator should include identity reset for Postgres when disableIdentity is true', async () => {
