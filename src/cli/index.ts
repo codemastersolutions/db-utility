@@ -20,12 +20,14 @@ import { IntrospectionLogger } from '../introspection/IntrospectionLogger';
 import { IntrospectionService } from '../introspection/IntrospectionService';
 import { ContainerManager } from '../testing/ContainerManager';
 import { MigrationTester } from '../testing/MigrationTester';
+import { ModelTester } from '../testing/ModelTester';
 import { DatabaseConfig, DatabaseType, IDatabaseConnector } from '../types/database';
 import { TableData, ColumnMetadata } from '../types/introspection';
 
 const appConfig = AppConfigLoader.load();
 const messages = getMessages(appConfig.language);
 
+import { VersionChecker } from './VersionChecker';
 import { resolveMigrationOutputDir } from './helpers';
 
 const getPackageVersion = (): string => {
@@ -44,7 +46,7 @@ program
   .name('db-utility')
   .alias('dbutility')
   .description(messages.cli.appDescription)
-  .version(getPackageVersion());
+  .version(getPackageVersion(), '-v, --version');
 
 program
   .option('--init', messages.cli.initOptionDescription)
@@ -135,7 +137,36 @@ interface CliOptions {
   data?: boolean;
   tables?: string;
   onlyData?: boolean;
+  test?: boolean;
 }
+
+const runTest = async (options: {
+  target?: string;
+  dir?: string;
+  engines?: string;
+  backup?: boolean;
+}) => {
+  const target = options.target || appConfig.target;
+  if (!target) {
+    throw new Error('Target is required (use --target or config.target)');
+  }
+
+  let migrationsDir: string;
+  if (options.dir) {
+    migrationsDir = options.dir;
+  } else {
+    const baseOutputDir = resolveMigrationOutputDir(process.cwd(), undefined, appConfig);
+    migrationsDir = join(baseOutputDir, target.toLowerCase());
+  }
+
+  const engines = options.engines ? options.engines.split(',').map((e) => e.trim()) : undefined;
+
+  const containerManager = new ContainerManager();
+  const tester = new MigrationTester(containerManager);
+
+  const backup = options.backup ?? appConfig.migrations.backup;
+  await tester.test(target, migrationsDir, engines, backup);
+};
 
 const getGenerator = (target: string) => {
   switch (target.toLowerCase()) {
@@ -224,11 +255,15 @@ addConnectionOptions(introspectCommand).action(async (options: CliOptions) => {
   });
 });
 
-const exportCommand = program.command('export').description(messages.cli.exportDescription);
+const exportCommand = program
+  .command('models')
+  .alias('model')
+  .description(messages.cli.exportDescription);
 
 addConnectionOptions(exportCommand)
   .option('--target <target>', 'Target ORM: sequelize, typeorm, prisma, mongoose')
   .option('--output <dir>', 'Output directory')
+  .option('--test', 'Test generated models')
   .action(async (options: CliOptions) => {
     const target = options.target || appConfig.target;
     if (!target) {
@@ -246,17 +281,23 @@ addConnectionOptions(exportCommand)
       console.log(`Generating models for ${target}...`);
 
       const files = await generator.generate(schema);
-      const baseOutputDir = options.output || join(process.cwd(), 'exports', 'generated-models');
+      const baseOutputDir = options.output || join(process.cwd(), 'exports', 'models');
       const outputDir = join(baseOutputDir, target.toLowerCase());
 
       GeneratorWriter.write(files, outputDir);
       console.log(`Successfully generated ${files.length} files in ${outputDir}`);
+
+      if (options.test) {
+        const tester = new ModelTester(config);
+        await tester.test(target, outputDir);
+      }
     });
   });
 
 const migrateCommand = program
   .command('migrations')
-  .aliases(['migration', 'migrate'])
+  .alias('migration')
+  .alias('migrate')
   .description(messages.cli.migrateDescription);
 
 addConnectionOptions(migrateCommand)
@@ -265,6 +306,7 @@ addConnectionOptions(migrateCommand)
   .option('--data', 'Generate data migration')
   .option('--only-data', 'Generate only data migration')
   .option('--tables <tables>', 'Comma separated list of tables to export data from')
+  .option('--test', 'Run tests after migration')
   .action(async (options: CliOptions) => {
     const target = options.target || appConfig.target;
     if (!target) {
@@ -384,6 +426,21 @@ addConnectionOptions(migrateCommand)
         console.log(`Successfully generated ${files.length} seed files in ${outputDir}`);
       }
     });
+
+    if (options.test) {
+      const baseOutputDir = resolveMigrationOutputDir(process.cwd(), options.output, appConfig);
+      const outputDir = join(baseOutputDir, target.toLowerCase());
+
+      console.log('\nStarting tests...');
+      try {
+        await runTest({
+          target,
+          dir: outputDir,
+        });
+      } catch (error) {
+        handleCliError(error);
+      }
+    }
   });
 
 const testCommand = program.command('test').description('Test generated migrations');
@@ -398,48 +455,37 @@ testCommand
   .option('--backup', 'Export database backup from container')
   .action(
     async (options: { target?: string; dir?: string; engines?: string; backup?: boolean }) => {
-      const target = options.target || appConfig.target;
-      if (!target) {
-        handleCliError(new Error('Target is required (use --target or config.target)'));
-        return;
-      }
-
-      let migrationsDir: string;
-      if (options.dir) {
-        migrationsDir = options.dir;
-      } else {
-        const baseDir = resolveMigrationOutputDir(process.cwd(), undefined, appConfig);
-        migrationsDir = join(baseDir, target.toLowerCase());
-      }
-
-      const engines = options.engines ? options.engines.split(',').map((e) => e.trim()) : undefined;
-
-      const containerManager = new ContainerManager();
-      const tester = new MigrationTester(containerManager);
-
       try {
-        const backup = options.backup ?? appConfig.migrations.backup;
-        await tester.test(target, migrationsDir, engines, backup);
+        await runTest(options);
       } catch (error) {
         handleCliError(error);
       }
     },
   );
 
-program.parse(process.argv);
+(async () => {
+  const checker = new VersionChecker(getPackageVersion(), appConfig.versionCheck);
+  const shouldContinue = await checker.check();
 
-const rootOptions = program.opts() as { init?: boolean; force?: boolean };
-const hasSubCommand = program.args && program.args.length > 0;
-
-if (rootOptions.init && !hasSubCommand) {
-  const result = ConfigInitializer.init(process.cwd(), rootOptions.force === true);
-  if (result.recreated) {
-    console.log(messages.cli.initRecreated(result.path));
-  } else if (result.created) {
-    console.log(messages.cli.initCreated(result.path));
-  } else {
-    console.log(messages.cli.initAlreadyExists(result.path));
+  if (!shouldContinue) {
+    return;
   }
-} else if (!hasSubCommand) {
-  program.help({ error: false });
-}
+
+  program.parse(process.argv);
+
+  const rootOptions = program.opts() as { init?: boolean; force?: boolean };
+  const hasSubCommand = program.args && program.args.length > 0;
+
+  if (rootOptions.init && !hasSubCommand) {
+    const result = ConfigInitializer.init(process.cwd(), rootOptions.force === true);
+    if (result.recreated) {
+      console.log(messages.cli.initRecreated(result.path));
+    } else if (result.created) {
+      console.log(messages.cli.initCreated(result.path));
+    } else {
+      console.log(messages.cli.initAlreadyExists(result.path));
+    }
+  } else if (!hasSubCommand) {
+    program.help({ error: false });
+  }
+})();

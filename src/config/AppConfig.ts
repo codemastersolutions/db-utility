@@ -13,9 +13,15 @@ export interface DataTableConfig {
   disableIdentity?: boolean;
 }
 
+export interface VersionCheckConfig {
+  enabled: boolean;
+  frequency: 'daily' | 'weekly' | 'monthly';
+}
+
 export interface AppConfig {
   language: AppLanguage;
   target?: string;
+  versionCheck?: VersionCheckConfig;
   introspection: {
     outputDir: string;
   };
@@ -30,6 +36,10 @@ export interface AppConfig {
 
 const defaultConfig: AppConfig = {
   language: 'pt-BR',
+  versionCheck: {
+    enabled: true,
+    frequency: 'daily',
+  },
   introspection: {
     outputDir: 'db-utility-introspect',
   },
@@ -70,6 +80,16 @@ export class AppConfigLoader {
       language: fromFile.language || fromEnv.language,
       target: fromFile.target || fromEnv.target,
     };
+
+    const envVersionCheck = fromEnv.versionCheck;
+    const fileVersionCheck = fromFile.versionCheck;
+
+    if (envVersionCheck || fileVersionCheck) {
+      merged.versionCheck = {
+        enabled: fileVersionCheck?.enabled ?? envVersionCheck?.enabled ?? defaultConfig.versionCheck!.enabled,
+        frequency: fileVersionCheck?.frequency ?? envVersionCheck?.frequency ?? defaultConfig.versionCheck!.frequency,
+      };
+    }
 
     const envIntrospection = fromEnv.introspection;
     const fileIntrospection = fromFile.introspection;
@@ -139,6 +159,9 @@ export class AppConfigLoader {
       process.env.DBUTILITY_LANGUAGE ||
       process.env.LANG;
     const rawTarget = process.env.DB_UTILITY_TARGET || process.env.DBUTILITY_TARGET;
+    
+    const rawVersionCheckEnabled = process.env.DB_UTILITY_VERSION_CHECK_ENABLED;
+    const rawVersionCheckFrequency = process.env.DB_UTILITY_VERSION_CHECK_FREQUENCY;
 
     const rawIntrospectionOutputDir =
       process.env.DB_UTILITY_INTROSPECTION_OUTPUT_DIR ||
@@ -162,6 +185,13 @@ export class AppConfigLoader {
     }
     if (rawTarget) {
       config.target = rawTarget;
+    }
+
+    if (rawVersionCheckEnabled !== undefined || rawVersionCheckFrequency) {
+      config.versionCheck = {
+        enabled: rawVersionCheckEnabled !== 'false',
+        frequency: (rawVersionCheckFrequency as 'daily' | 'weekly' | 'monthly') || 'daily',
+      };
     }
 
     if (rawIntrospectionOutputDir) {
@@ -204,6 +234,15 @@ export class AppConfigLoader {
     const language = raw.language ? this.normalizeLanguage(raw.language) : defaultConfig.language;
     const target = raw.target;
 
+    const versionCheck: VersionCheckConfig = {
+      enabled:
+        raw.versionCheck?.enabled !== undefined
+          ? raw.versionCheck.enabled
+          : defaultConfig.versionCheck!.enabled,
+      frequency:
+        raw.versionCheck?.frequency || defaultConfig.versionCheck!.frequency,
+    };
+
     const introspectionOutputDir =
       raw.introspection && raw.introspection.outputDir
         ? raw.introspection.outputDir
@@ -238,6 +277,7 @@ export class AppConfigLoader {
     return {
       language,
       ...(target ? { target } : {}),
+      versionCheck,
       introspection: {
         outputDir: introspectionOutputDir,
       },

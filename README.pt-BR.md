@@ -25,6 +25,15 @@ npm install @codemastersolutions/db-utility
 npm install -g @codemastersolutions/db-utility
 ```
 
+## Uso de Internet
+
+Esta biblioteca utiliza sua conexão com a internet para verificar atualizações no registro npm. Esta verificação é realizada automaticamente (padrão: diariamente) quando você executa um comando da CLI.
+
+- **Timeout**: A verificação tem um tempo limite de 10 segundos.
+- **Offline**: Se nenhuma conexão com a internet for detectada, a verificação é ignorada silenciosamente.
+- **Privacidade**: Nenhum dado pessoal é coletado. Apenas a versão do pacote é comparada.
+- **Configuração**: Você pode desativar este recurso ou alterar a frequência no arquivo de configuração.
+
 ## Configuração
 
 ### Inicialização
@@ -50,6 +59,10 @@ O arquivo de configuração permite definir o idioma da CLI, diretórios de saí
 ```json
 {
   "language": "pt-BR",
+  "versionCheck": {
+    "enabled": true,
+    "frequency": "daily"
+  },
   "introspection": {
     "outputDir": "db-utility-introspect"
   },
@@ -90,6 +103,25 @@ O arquivo de configuração permite definir o idioma da CLI, diretórios de saí
   }
 }
 ```
+
+### Configuração de Verificação de Versão
+
+Você pode configurar a verificação automática de versão no `dbutility.config.json`.
+
+```json
+{
+  "versionCheck": {
+    "enabled": true,
+    "frequency": "daily"
+  }
+}
+```
+
+- **`enabled`** (boolean): Defina como `true` para ativar a verificação de versão, `false` para desativar. Padrão: `true`.
+- **`frequency`** (string): Com que frequência verificar atualizações.
+  - `"daily"`: Uma vez por dia (padrão).
+  - `"weekly"`: Uma vez por semana.
+  - `"monthly"`: Uma vez por mês.
 
 ### Configuração Avançada de Extração de Dados
 
@@ -183,7 +215,7 @@ DB_NAME=meubanco
 | `-v, --version` | Exibe o número da versão                                   |
 | `-h, --help`    | Exibe ajuda para o comando                                 |
 
-### Opções de Conexão (Disponíveis para `connect`, `introspect`, `export`, `migration`)
+### Opções de Conexão (Disponíveis para `connect`, `introspect`, `models`, `migrations`)
 
 | Flag                        | Descrição                                             |
 | --------------------------- | ----------------------------------------------------- |
@@ -215,18 +247,19 @@ Faz introspecção no esquema do banco de dados.
 dbutility introspect [opções-conexão]
 ```
 
-#### `export`
+#### `models`
 
 Exporta modelos para o ORM alvo.
 
 ```bash
-dbutility export --target <orm> [opções] [opções-conexão]
+dbutility models --target <orm> [opções] [opções-conexão]
 ```
 
 | Flag                | Descrição                                               | Obrigatório |
 | ------------------- | ------------------------------------------------------- | ----------- |
 | `--target <target>` | ORM alvo (`sequelize`, `typeorm`, `prisma`, `mongoose`) | Sim         |
 | `--output <dir>`    | Diretório de saída                                      | Não         |
+| `--test`            | Executa testes nos models gerados                       | Não         |
 
 #### `migrations`
 
@@ -243,6 +276,7 @@ dbutility migrations --target <orm> [opções] [opções-conexão]
 | `--data`            | Gera migração de dados (seeds) junto com o esquema (Sobrescreve configuração)              | Não                                                              |
 | `--only-data`       | Gera APENAS migração de dados                                                              | Não                                                              |
 | `--tables <tables>` | Lista de tabelas separadas por vírgula para exportação de dados (Sobrescreve configuração) | Sim (se `--data` ou `--only-data` e não estiver na configuração) |
+| `--test`            | Executa o comando test após a geração das migrações                                        | Não                                                              |
 
 #### `test`
 
@@ -276,7 +310,13 @@ dbutility introspect --type postgres --host localhost --username usuario --passw
 ### Exportar modelos do Sequelize de uma conexão específica
 
 ```bash
-dbutility export --target sequelize --conn desenvolvimento --output ./src/models
+dbutility models --target sequelize --conn desenvolvimento --output ./src/models
+```
+
+### Exportar models e executar testes
+
+```bash
+dbutility models --target sequelize --conn desenvolvimento --test
 ```
 
 ### Gerar migrações do TypeORM de uma conexão específica

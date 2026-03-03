@@ -25,6 +25,15 @@ npm install @codemastersolutions/db-utility
 npm install -g @codemastersolutions/db-utility
 ```
 
+## Internet Usage
+
+This library uses your internet connection to check for updates on the npm registry. This check is performed automatically (default: daily) when you execute a CLI command.
+
+- **Timeout**: The check has a 10-second timeout.
+- **Offline**: If no internet connection is detected, the check is silently skipped.
+- **Privacy**: No personal data is collected. Only the package version is compared.
+- **Configuration**: You can disable this feature or change the frequency in the configuration file.
+
 ## Configuration
 
 ### Initialization
@@ -50,6 +59,10 @@ The configuration file allows you to define CLI language, output directories, na
 ```json
 {
   "language": "en",
+  "versionCheck": {
+    "enabled": true,
+    "frequency": "daily"
+  },
   "introspection": {
     "outputDir": "db-utility-introspect"
   },
@@ -90,6 +103,25 @@ The configuration file allows you to define CLI language, output directories, na
   }
 }
 ```
+
+### Version Check Configuration
+
+You can configure the automatic version check in `dbutility.config.json`.
+
+```json
+{
+  "versionCheck": {
+    "enabled": true,
+    "frequency": "daily"
+  }
+}
+```
+
+- **`enabled`** (boolean): Set to `true` to enable version checking, `false` to disable it. Default: `true`.
+- **`frequency`** (string): How often to check for updates.
+  - `"daily"`: Once a day (default).
+  - `"weekly"`: Once a week.
+  - `"monthly"`: Once a month.
 
 ### Advanced Data Extraction Configuration
 
@@ -183,7 +215,7 @@ DB_NAME=mydb
 | `-v, --version` | Output the version number                           |
 | `-h, --help`    | Display help for command                            |
 
-### Connection Options (Available for `connect`, `introspect`, `export`, `migrate`)
+### Connection Options (Available for `connect`, `introspect`, `models`, `migrations`)
 
 | Flag                        | Description                                   |
 | --------------------------- | --------------------------------------------- |
@@ -215,18 +247,19 @@ Introspect database schema.
 dbutility introspect [connection-options]
 ```
 
-#### `export`
+#### `models`
 
 Export models for target ORM.
 
 ```bash
-dbutility export --target <orm> [options] [connection-options]
+dbutility models --target <orm> [options] [connection-options]
 ```
 
 | Flag                | Description                                               | Required |
 | ------------------- | --------------------------------------------------------- | -------- |
 | `--target <target>` | Target ORM (`sequelize`, `typeorm`, `prisma`, `mongoose`) | Yes      |
 | `--output <dir>`    | Output directory                                          | No       |
+| `--test`            | Run tests on generated models                             | No       |
 
 #### `migrations`
 
@@ -243,6 +276,7 @@ dbutility migrations --target <orm> [options] [connection-options]
 | `--data`            | Generate data migration (seeds) along with schema (Overrides config) | No                                                   |
 | `--only-data`       | Generate ONLY data migrations                                        | No                                                   |
 | `--tables <tables>` | Comma-separated list of tables for data export (Overrides config)    | Yes (if `--data` or `--only-data` and not in config) |
+| `--test`            | Run test command after migration generation                          | No                                                   |
 
 #### `test`
 
@@ -276,7 +310,13 @@ dbutility introspect --type postgres --host localhost --username myuser --passwo
 ### Export Sequelize models from a specific connection
 
 ```bash
-dbutility export --target sequelize --conn development --output ./src/models
+dbutility models --target sequelize --conn development --output ./src/models
+```
+
+### Export models and run tests
+
+```bash
+dbutility models --target sequelize --conn development --test
 ```
 
 ### Generate TypeORM migrations from a specific connection

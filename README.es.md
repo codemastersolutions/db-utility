@@ -25,6 +25,15 @@ npm install @codemastersolutions/db-utility
 npm install -g @codemastersolutions/db-utility
 ```
 
+## Uso de Internet
+
+Esta librería utiliza su conexión a internet para buscar actualizaciones en el registro npm. Esta verificación se realiza automáticamente (predeterminado: diariamente) cuando ejecuta un comando de la CLI.
+
+- **Tiempo de espera**: La verificación tiene un tiempo de espera de 10 segundos.
+- **Sin conexión**: Si no se detecta conexión a internet, la verificación se omite silenciosamente.
+- **Privacidad**: No se recopilan datos personales. Solo se compara la versión del paquete.
+- **Configuración**: Puede desactivar esta función o cambiar la frecuencia en el archivo de configuración.
+
 ## Configuración
 
 ### Inicialización
@@ -50,6 +59,10 @@ El archivo de configuración permite definir el idioma de la CLI, directorios de
 ```json
 {
   "language": "es",
+  "versionCheck": {
+    "enabled": true,
+    "frequency": "daily"
+  },
   "introspection": {
     "outputDir": "db-utility-introspect"
   },
@@ -57,10 +70,7 @@ El archivo de configuración permite definir el idioma de la CLI, directorios de
     "outputDir": "db-utility-migrations",
     "fileNamePattern": "timestamp-prefix",
     "data": true,
-    "dataTables": [
-      "usuarios",
-      { "table": "logs", "where": "nivel = 'ERROR'" }
-    ],
+    "dataTables": ["usuarios", { "table": "logs", "where": "nivel = 'ERROR'" }],
     "backup": true
   },
   "connection": {
@@ -94,17 +104,36 @@ El archivo de configuración permite definir el idioma de la CLI, directorios de
 }
 ```
 
+### Configuración de Verificación de Versión
+
+Puede configurar la verificación automática de versión en `dbutility.config.json`.
+
+```json
+{
+  "versionCheck": {
+    "enabled": true,
+    "frequency": "daily"
+  }
+}
+```
+
+- **`enabled`** (boolean): Establezca en `true` para habilitar la verificación de versión, `false` para deshabilitarla. Predeterminado: `true`.
+- **`frequency`** (string): Con qué frecuencia verificar actualizaciones.
+  - `"daily"`: Una vez al día (predeterminado).
+  - `"weekly"`: Una vez a la semana.
+  - `"monthly"`: Una vez al mes.
+
 ### Configuración Avanzada de Extracción de Datos
 
 La opción `dataTables` permite especificar qué tablas deben tener sus datos exportados (para seeds). Puede proporcionar una lista simple de nombres de tablas o un objeto con una cláusula `where` para filtrar los datos.
 
 ```json
 "dataTables": [
-  "roles", 
+  "roles",
   "permisos",
-  { 
-    "table": "usuarios", 
-    "where": "activo = 1 AND creado_en > '2023-01-01'" 
+  {
+    "table": "usuarios",
+    "where": "activo = 1 AND creado_en > '2023-01-01'"
   },
   {
     "table": "registros",
@@ -118,6 +147,7 @@ La opción `dataTables` permite especificar qué tablas deben tener sus datos ex
 Puede definir múltiples conexiones dentro de la propiedad `connections` y utilizarlas en la CLI con el flag `--conn <nombre>`.
 
 Ejemplo:
+
 ```bash
 dbutility connect --conn desarrollo
 ```
@@ -171,26 +201,26 @@ DB_NAME=mibasedatos
 
 ### Opciones Globales
 
-| Flag | Descripción |
-|------|-------------|
-| `--init` | Inicializa el archivo de configuración |
-| `-f, --force` | Fuerza la recreación del archivo de configuración si ya existe |
-| `-v, --version` | Muestra el número de la versión |
-| `-h, --help` | Muestra ayuda para el comando |
+| Flag            | Descripción                                                    |
+| --------------- | -------------------------------------------------------------- |
+| `--init`        | Inicializa el archivo de configuración                         |
+| `-f, --force`   | Fuerza la recreación del archivo de configuración si ya existe |
+| `-v, --version` | Muestra el número de la versión                                |
+| `-h, --help`    | Muestra ayuda para el comando                                  |
 
-### Opciones de Conexión (Disponibles para `connect`, `introspect`, `export`, `migrate`)
+### Opciones de Conexión (Disponibles para `connect`, `introspect`, `models`, `migrations`)
 
-| Flag | Descripción |
-|------|-------------|
-| `--conn <name>` | Nombre de la conexión definida en el archivo de configuración |
-| `-c, --config <path>` | Ruta al archivo de configuración |
-| `-t, --type <type>` | Tipo de base de datos (`mysql`, `postgres`, `mssql`) |
-| `-H, --host <host>` | Host de la base de datos |
-| `-P, --port <port>` | Puerto de la base de datos |
-| `-u, --username <username>` | Usuario de la base de datos |
-| `-p, --password <password>` | Contraseña de la base de datos |
-| `-d, --database <database>` | Nombre de la base de datos |
-| `--ssl` | Habilita conexión SSL |
+| Flag                        | Descripción                                                   |
+| --------------------------- | ------------------------------------------------------------- |
+| `--conn <name>`             | Nombre de la conexión definida en el archivo de configuración |
+| `-c, --config <path>`       | Ruta al archivo de configuración                              |
+| `-t, --type <type>`         | Tipo de base de datos (`mysql`, `postgres`, `mssql`)          |
+| `-H, --host <host>`         | Host de la base de datos                                      |
+| `-P, --port <port>`         | Puerto de la base de datos                                    |
+| `-u, --username <username>` | Usuario de la base de datos                                   |
+| `-p, --password <password>` | Contraseña de la base de datos                                |
+| `-d, --database <database>` | Nombre de la base de datos                                    |
+| `--ssl`                     | Habilita conexión SSL                                         |
 
 ### Comandos
 
@@ -210,18 +240,19 @@ Realiza introspección en el esquema de la base de datos.
 dbutility introspect [opciones-conexión]
 ```
 
-#### `export`
+#### `models`
 
 Exporta modelos para el ORM objetivo.
 
 ```bash
-dbutility export --target <orm> [opciones] [opciones-conexión]
+dbutility models --target <orm> [opciones] [opciones-conexión]
 ```
 
-| Flag | Descripción | Obligatorio |
-|------|-------------|-------------|
-| `--target <target>` | ORM objetivo (`sequelize`, `typeorm`, `prisma`, `mongoose`) | Sí |
-| `--output <dir>` | Directorio de salida | No |
+| Flag                | Descripción                                                 | Obligatorio |
+| ------------------- | ----------------------------------------------------------- | ----------- |
+| `--target <target>` | ORM objetivo (`sequelize`, `typeorm`, `prisma`, `mongoose`) | Sí          |
+| `--output <dir>`    | Directorio de salida                                        | No          |
+| `--test`            | Ejecuta pruebas en los modelos generados                    | No          |
 
 #### `migrations`
 
@@ -231,13 +262,14 @@ Genera migraciones a partir del esquema de la base de datos.
 dbutility migrations --target <orm> [opciones] [opciones-conexión]
 ```
 
-| Flag | Descripción | Obligatorio |
-|------|-------------|-------------|
-| `--target <target>` | ORM objetivo (`sequelize`, `typeorm`) | Sí |
-| `--output <dir>` | Directorio de salida | No |
-| `--data` | Genera migración de datos (seeds) junto con el esquema (Sobrescribe configuración) | No |
-| `--only-data` | Genera SOLO migración de datos | No |
+| Flag                | Descripción                                                                              | Obligatorio                                                    |
+| ------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `--target <target>` | ORM objetivo (`sequelize`, `typeorm`)                                                    | Sí                                                             |
+| `--output <dir>`    | Directorio de salida                                                                     | No                                                             |
+| `--data`            | Genera migración de datos (seeds) junto con el esquema (Sobrescribe configuración)       | No                                                             |
+| `--only-data`       | Genera SOLO migración de datos                                                           | No                                                             |
 | `--tables <tables>` | Lista de tablas separadas por coma para exportación de datos (Sobrescribe configuración) | Sí (si `--data` o `--only-data` y no está en la configuración) |
+| `--test`            | Ejecuta el comando test después de la generación de migraciones                          | No                                                             |
 
 #### `test`
 
@@ -247,36 +279,47 @@ Prueba migraciones generadas en contenedores Docker.
 dbutility test --target <orm> [opciones]
 ```
 
-| Flag | Descripción | Obligatorio |
-|------|-------------|-------------|
-| `--target <target>` | ORM objetivo (`sequelize`, `typeorm`) | Sí |
-| `--dir <dir>` | Directorio conteniendo las migraciones | No |
-| `--engines <engines>` | Imágenes Docker para probar (ej: `postgres:14,mysql:8`) | No |
-| `--backup` | Exporta backup de la base de datos del contenedor después de la prueba (Sobrescribe configuración) | No |
+| Flag                  | Descripción                                                                                        | Obligatorio |
+| --------------------- | -------------------------------------------------------------------------------------------------- | ----------- |
+| `--target <target>`   | ORM objetivo (`sequelize`, `typeorm`)                                                              | Sí          |
+| `--dir <dir>`         | Directorio conteniendo las migraciones                                                             | No          |
+| `--engines <engines>` | Imágenes Docker para probar (ej: `postgres:14,mysql:8`)                                            | No          |
+| `--backup`            | Exporta backup de la base de datos del contenedor después de la prueba (Sobrescribe configuración) | No          |
 
 ## Ejemplos de Uso
 
 ### Conectar a una base de datos usando una conexión con nombre
+
 ```bash
 dbutility connect --conn produccion
 ```
 
 ### Realizar introspección de una base de datos usando parámetros de conexión en línea
+
 ```bash
 dbutility introspect --type postgres --host localhost --username usuario --password contrasena --database mibasedatos
 ```
 
 ### Exportar modelos de Sequelize desde una conexión específica
+
 ```bash
-dbutility export --target sequelize --conn desarrollo --output ./src/models
+dbutility models --target sequelize --conn desarrollo --output ./src/models
+```
+
+### Exportar modelos y ejecutar pruebas
+
+```bash
+dbutility models --target sequelize --conn desarrollo --test
 ```
 
 ### Generar migraciones de TypeORM desde una conexión específica
+
 ```bash
 dbutility migrations --target typeorm --conn produccion
 ```
 
 ### Generar Migraciones de Datos (Seeds)
+
 ```bash
 dbutility migrations --target sequelize --conn desarrollo --data --tables "usuarios,roles"
 ```

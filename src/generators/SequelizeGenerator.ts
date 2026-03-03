@@ -29,7 +29,18 @@ ${table.columns.map((c) => this.generateColumnDefinition(c)).join(',\n')}
     {
       sequelize,
       tableName: '${table.name}',
-      timestamps: false, // Assuming no standard timestamps for now
+      timestamps: false,
+      indexes: [
+${table.indexes
+  .filter((idx) => !idx.isPrimary)
+  .map(
+    (idx) =>
+      `        { name: '${idx.name}', fields: ['${idx.columns.join("','")}'], unique: ${
+        idx.isUnique
+      } }`,
+  )
+  .join(',\n')}
+      ]
     }
   );
   return ${className};

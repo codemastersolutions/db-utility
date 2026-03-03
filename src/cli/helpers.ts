@@ -14,5 +14,5 @@ export const resolveMigrationOutputDir = (
     return join(cwd, appConfig.migrations.outputDir);
   }
 
-  return join(cwd, 'exports', 'migration');
+  return join(cwd, 'exports', 'migrations');
 };
