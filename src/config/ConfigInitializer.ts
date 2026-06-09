@@ -1,5 +1,5 @@
-import { existsSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { existsSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { AppLanguage } from './AppConfig';
 import { DatabaseConfig } from '../types/database';
 
@@ -32,6 +32,7 @@ const defaultConfig: InitialFileConfig = {
     password: 'password',
     database: 'database_name',
     ssl: false,
+    connectTimeoutMs: 15000,
   },
 };
 

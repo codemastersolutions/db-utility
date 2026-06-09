@@ -80,7 +80,8 @@ O arquivo de configuração permite definir o idioma da CLI, diretórios de saí
     "username": "usuario",
     "password": "senha",
     "database": "meubanco",
-    "ssl": false
+    "ssl": false,
+    "connectTimeoutMs": 15000
   },
   "connections": {
     "desenvolvimento": {
@@ -89,7 +90,8 @@ O arquivo de configuração permite definir o idioma da CLI, diretórios de saí
       "port": 3306,
       "username": "root",
       "password": "password",
-      "database": "dev_db"
+      "database": "dev_db",
+      "connectTimeoutMs": 15000
     },
     "producao": {
       "type": "postgres",
@@ -98,7 +100,8 @@ O arquivo de configuração permite definir o idioma da CLI, diretórios de saí
       "username": "admin",
       "password": "secure_password",
       "database": "prod_db",
-      "ssl": true
+      "ssl": true,
+      "connectTimeoutMs": 15000
     }
   }
 }
@@ -200,6 +203,7 @@ DB_PORT=5432
 DB_USER=usuario
 DB_PASSWORD=senha
 DB_NAME=meubanco
+DB_CONNECT_TIMEOUT_MS=15000
 ```
 
 ## Comandos e Flags da CLI
@@ -228,6 +232,7 @@ DB_NAME=meubanco
 | `-p, --password <password>` | Senha do banco de dados                               |
 | `-d, --database <database>` | Nome do banco de dados                                |
 | `--ssl`                     | Habilita conexão SSL                                  |
+| `--connect-timeout <ms>`    | Timeout de conexão (ms)                               |
 
 ### Comandos
 

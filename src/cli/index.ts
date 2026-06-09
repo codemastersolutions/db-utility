@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
-import { readFileSync } from 'fs';
-import { join } from 'path';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { AppConfigLoader } from '../config/AppConfig';
 import { ConfigInitializer } from '../config/ConfigInitializer';
 import { ConfigLoader } from '../config/ConfigLoader';
@@ -22,7 +22,6 @@ import { ContainerManager } from '../testing/ContainerManager';
 import { MigrationTester } from '../testing/MigrationTester';
 import { ModelTester } from '../testing/ModelTester';
 import { DatabaseConfig, DatabaseType, IDatabaseConnector } from '../types/database';
-import { TableData, ColumnMetadata } from '../types/introspection';
 
 const appConfig = AppConfigLoader.load();
 const messages = getMessages(appConfig.language);
@@ -89,6 +88,9 @@ const handleCliError = (error: unknown) => {
       case 'CONFIG_DB_TYPE_REQUIRED':
         text = messages.cli.configDbTypeRequired;
         break;
+      case 'CONFIG_DB_CONNECT_TIMEOUT_INVALID':
+        text = messages.cli.configDbConnectTimeoutInvalid(error.details || '?');
+        break;
       case 'CONNECTION_FAILED':
         text = messages.cli.connectionFailed;
         break;
@@ -119,7 +121,8 @@ const addConnectionOptions = (cmd: Command) => {
     .option('-u, --username <username>', messages.cli.optionUsername)
     .option('-p, --password <password>', messages.cli.optionPassword)
     .option('-d, --database <database>', messages.cli.optionDatabase)
-    .option('--ssl', messages.cli.optionSsl);
+    .option('--ssl', messages.cli.optionSsl)
+    .option('--connect-timeout <ms>', messages.cli.optionConnectTimeout);
 };
 
 interface CliOptions {
@@ -132,6 +135,7 @@ interface CliOptions {
   password?: string;
   database?: string;
   ssl?: boolean;
+  connectTimeout?: string;
   target?: string;
   output?: string;
   data?: boolean;
@@ -189,11 +193,13 @@ const getConnectionConfig = async (options: CliOptions): Promise<DatabaseConfig>
 
   if (options.type) overrides.type = options.type as DatabaseType;
   if (options.host) overrides.host = options.host;
-  if (options.port) overrides.port = parseInt(options.port, 10);
+  if (options.port) overrides.port = Number.parseInt(options.port, 10);
   if (options.username) overrides.username = options.username;
   if (options.password) overrides.password = options.password;
   if (options.database) overrides.database = options.database;
   if (options.ssl) overrides.ssl = true;
+  if (options.connectTimeout)
+    overrides.connectTimeoutMs = Number.parseInt(options.connectTimeout, 10);
 
   return ConfigLoader.load(options.config, overrides, options.conn);
 };

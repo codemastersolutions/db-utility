@@ -38,6 +38,7 @@ describe('PostgresConnector', () => {
       username: 'test',
       password: 'password',
       database: 'test_db',
+      connectTimeoutMs: 15000,
     };
     connector = new PostgresConnector(config);
   });
@@ -48,6 +49,7 @@ describe('PostgresConnector', () => {
       expect.objectContaining({
         host: 'localhost',
         database: 'test_db',
+        connectionTimeoutMillis: 15000,
       }),
     );
   });

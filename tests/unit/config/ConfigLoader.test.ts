@@ -1,10 +1,10 @@
-import fs from 'fs';
+import fs from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConfigLoader } from '../../../src/config/ConfigLoader';
 import { DbUtilityError } from '../../../src/errors/DbUtilityError';
 import { DatabaseConfig } from '../../../src/types/database';
 
-vi.mock('fs');
+vi.mock('node:fs');
 
 describe('ConfigLoader', () => {
   const originalEnv = process.env;
@@ -40,6 +40,7 @@ describe('ConfigLoader', () => {
       password: 'password',
       database: 'db',
       ssl: undefined,
+      connectTimeoutMs: undefined,
       connectionString: undefined,
     });
   });
@@ -89,6 +90,49 @@ describe('ConfigLoader', () => {
       host: 'file-host', // File ganha do Env
       username: 'override-user', // Override ganha de todos
       password: 'env-password', // Env (único lugar)
+    });
+  });
+
+  it('deve carregar connectTimeoutMs do env', async () => {
+    process.env.DBUTILITY_DB_TYPE = 'postgres';
+    process.env.DBUTILITY_DB_CONNECT_TIMEOUT_MS = '15000';
+    vi.spyOn(fs, 'existsSync').mockReturnValue(false);
+
+    const config = await ConfigLoader.load();
+
+    expect(config.connectTimeoutMs).toBe(15000);
+  });
+
+  it('deve respeitar a prioridade de connectTimeoutMs: Override > File > Env', async () => {
+    process.env.DBUTILITY_DB_TYPE = 'postgres';
+    process.env.DBUTILITY_DB_CONNECT_TIMEOUT_MS = '1000';
+
+    const fileConfig = {
+      connection: {
+        connectTimeoutMs: 2000,
+      },
+    };
+    vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+    vi.spyOn(fs, 'readFileSync').mockReturnValue(JSON.stringify(fileConfig));
+    vi.mocked(fs.existsSync).mockImplementation((path) =>
+      String(path).endsWith('dbutility.config.json'),
+    );
+
+    const overrides: Partial<DatabaseConfig> = {
+      connectTimeoutMs: 3000,
+    };
+
+    const config = await ConfigLoader.load(undefined, overrides);
+    expect(config.connectTimeoutMs).toBe(3000);
+  });
+
+  it('deve lançar erro se connectTimeoutMs for inválido', async () => {
+    process.env.DBUTILITY_DB_TYPE = 'postgres';
+    process.env.DBUTILITY_DB_CONNECT_TIMEOUT_MS = 'invalid';
+    vi.spyOn(fs, 'existsSync').mockReturnValue(false);
+
+    await expect(ConfigLoader.load()).rejects.toMatchObject({
+      code: 'CONFIG_DB_CONNECT_TIMEOUT_INVALID',
     });
   });
 

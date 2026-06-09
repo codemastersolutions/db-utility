@@ -80,7 +80,8 @@ El archivo de configuración permite definir el idioma de la CLI, directorios de
     "username": "usuario",
     "password": "password",
     "database": "mibasedatos",
-    "ssl": false
+    "ssl": false,
+    "connectTimeoutMs": 15000
   },
   "connections": {
     "desarrollo": {
@@ -89,7 +90,8 @@ El archivo de configuración permite definir el idioma de la CLI, directorios de
       "port": 3306,
       "username": "root",
       "password": "password",
-      "database": "dev_db"
+      "database": "dev_db",
+      "connectTimeoutMs": 15000
     },
     "produccion": {
       "type": "postgres",
@@ -98,7 +100,8 @@ El archivo de configuración permite definir el idioma de la CLI, directorios de
       "username": "admin",
       "password": "secure_password",
       "database": "prod_db",
-      "ssl": true
+      "ssl": true,
+      "connectTimeoutMs": 15000
     }
   }
 }
@@ -193,6 +196,7 @@ DB_PORT=5432
 DB_USER=usuario
 DB_PASSWORD=password
 DB_NAME=mibasedatos
+DB_CONNECT_TIMEOUT_MS=15000
 ```
 
 ## Comandos y Flags de la CLI
@@ -221,6 +225,7 @@ DB_NAME=mibasedatos
 | `-p, --password <password>` | Contraseña de la base de datos                                |
 | `-d, --database <database>` | Nombre de la base de datos                                    |
 | `--ssl`                     | Habilita conexión SSL                                         |
+| `--connect-timeout <ms>`    | Timeout de conexión (ms)                                      |
 
 ### Comandos
 

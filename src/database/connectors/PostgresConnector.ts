@@ -1,11 +1,12 @@
-import { Pool, PoolConfig } from 'pg';
+import { Pool } from 'pg';
+import type { PoolConfig } from 'pg';
 import { DbUtilityError } from '../../errors/DbUtilityError';
 import { DatabaseConfig, IDatabaseConnector, QueryOptions } from '../../types/database';
 import { assertSafeSql } from '../SqlSafety';
 
 export class PostgresConnector implements IDatabaseConnector {
   private pool: Pool | null = null;
-  private config: DatabaseConfig;
+  private readonly config: DatabaseConfig;
 
   constructor(config: DatabaseConfig) {
     this.config = config;
@@ -19,6 +20,9 @@ export class PostgresConnector implements IDatabaseConnector {
       password: this.config.password,
       database: this.config.database,
       ssl: this.config.ssl ? { rejectUnauthorized: false } : undefined,
+      ...(this.config.connectTimeoutMs === undefined
+        ? {}
+        : { connectionTimeoutMillis: this.config.connectTimeoutMs }),
     };
 
     if (this.config.connectionString) {

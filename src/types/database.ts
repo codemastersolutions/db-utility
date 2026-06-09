@@ -8,6 +8,7 @@ export interface DatabaseConfig {
   password?: string;
   database?: string;
   ssl?: boolean;
+  connectTimeoutMs?: number;
   // Opções específicas podem ser adicionadas depois
   connectionString?: string;
 }

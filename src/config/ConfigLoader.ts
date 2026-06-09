@@ -1,12 +1,14 @@
 import dotenv from 'dotenv';
-import { existsSync, readFileSync } from 'fs';
-import { extname, resolve } from 'path';
+import { existsSync, readFileSync } from 'node:fs';
+import { extname, resolve } from 'node:path';
 import { DatabaseConfig, DatabaseType } from '../types/database';
 import { DbUtilityError } from '../errors/DbUtilityError';
 
 dotenv.config();
 
 export class ConfigLoader {
+  private static readonly MAX_CONNECT_TIMEOUT_MS = 10 * 60 * 1000;
+
   static async load(
     configPath?: string,
     overrides?: Partial<DatabaseConfig>,
@@ -72,12 +74,17 @@ export class ConfigLoader {
       password: merge('password'),
       database: merge('database'),
       ssl: merge('ssl'),
+      connectTimeoutMs: merge('connectTimeoutMs'),
       connectionString: merge('connectionString'),
     };
 
     // Validação final
     if (!finalConfig.type && !finalConfig.connectionString) {
       throw new DbUtilityError('CONFIG_DB_TYPE_OR_CONNECTION_STRING_REQUIRED');
+    }
+
+    if (finalConfig.connectTimeoutMs !== undefined) {
+      finalConfig.connectTimeoutMs = this.parseConnectTimeoutMs(finalConfig.connectTimeoutMs);
     }
 
     return finalConfig;
@@ -121,14 +128,37 @@ export class ConfigLoader {
     const connectionString =
       process.env.DBUTILITY_DB_CONNECTION_STRING || process.env.DB_CONNECTION_STRING;
 
+    const connectTimeoutMsStr =
+      process.env.DBUTILITY_DB_CONNECT_TIMEOUT_MS || process.env.DB_CONNECT_TIMEOUT_MS;
+
     return {
       type: dbType as DatabaseType,
       host,
-      port: portStr ? parseInt(portStr, 10) : undefined,
+      port: portStr ? Number.parseInt(portStr, 10) : undefined,
       username,
       password,
       database,
+      connectTimeoutMs: connectTimeoutMsStr ? Number.parseInt(connectTimeoutMsStr, 10) : undefined,
       connectionString,
     };
+  }
+
+  private static parseConnectTimeoutMs(value: unknown): number {
+    const parsed =
+      typeof value === 'number'
+        ? value
+        : typeof value === 'string'
+          ? Number.parseInt(value, 10)
+          : Number.NaN;
+
+    if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
+      throw new DbUtilityError('CONFIG_DB_CONNECT_TIMEOUT_INVALID', String(value));
+    }
+
+    if (parsed < 1 || parsed > this.MAX_CONNECT_TIMEOUT_MS) {
+      throw new DbUtilityError('CONFIG_DB_CONNECT_TIMEOUT_INVALID', String(value));
+    }
+
+    return parsed;
   }
 }

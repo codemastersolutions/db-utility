@@ -1,4 +1,5 @@
-import { createPool, Pool, PoolOptions } from 'mysql2/promise';
+import { createPool } from 'mysql2/promise';
+import type { Pool, PoolOptions } from 'mysql2/promise';
 import { DbUtilityError } from '../../errors/DbUtilityError';
 import { DatabaseConfig, IDatabaseConnector, QueryOptions } from '../../types/database';
 import { assertSafeSql } from '../SqlSafety';
@@ -19,14 +20,26 @@ export class MysqlConnector implements IDatabaseConnector {
       password: this.config.password,
       database: this.config.database,
       ssl: this.config.ssl ? { rejectUnauthorized: false } : undefined,
+      ...(this.config.connectTimeoutMs !== undefined
+        ? { connectTimeout: this.config.connectTimeoutMs }
+        : {}),
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0,
     };
 
     if (this.config.connectionString) {
-      // mysql2 suporta connection uri
-      this.pool = createPool(this.config.connectionString);
+      const poolConfig: PoolOptions & { uri: string } = {
+        ...(this.config.connectTimeoutMs !== undefined
+          ? { connectTimeout: this.config.connectTimeoutMs }
+          : {}),
+        ...(this.config.ssl ? { ssl: { rejectUnauthorized: false } } : {}),
+        uri: this.config.connectionString,
+        waitForConnections: true,
+        connectionLimit: 10,
+        queueLimit: 0,
+      };
+      this.pool = createPool(poolConfig);
     } else {
       this.pool = createPool(poolOptions);
     }

@@ -16,6 +16,7 @@ export interface CliMessages {
   optionPassword: string;
   optionDatabase: string;
   optionSsl: string;
+  optionConnectTimeout: string;
   optionConnectionName: string;
   loadingConfig: string;
   connecting: (dbType: string) => string;
@@ -42,6 +43,7 @@ export interface CliMessages {
   configFileFormatUnsupported: (ext: string) => string;
   configDbTypeOrConnectionStringRequired: string;
   configDbTypeRequired: string;
+  configDbConnectTimeoutInvalid: (value: string) => string;
   connectionConfigNotFound: (name: string) => string;
   connectionFailed: string;
 }
@@ -68,6 +70,7 @@ const ptBrMessages: Messages = {
     optionPassword: 'Senha do banco de dados',
     optionDatabase: 'Nome do banco de dados',
     optionSsl: 'Habilitar SSL',
+    optionConnectTimeout: 'Timeout de conexão em ms (ex: 15000)',
     optionConnectionName: 'Nome da conexão no arquivo de configuração',
     loadingConfig: 'Carregando configuração...',
     connecting: (dbType: string) => `Tentando conectar ao banco de dados ${dbType}...`,
@@ -105,6 +108,8 @@ const ptBrMessages: Messages = {
       'Tipo de banco de dados (type) ou connectionString é obrigatório.',
     configDbTypeRequired:
       'Configuração de banco de dados não encontrada. Defina as variáveis de ambiente ou crie um arquivo de configuração.',
+    configDbConnectTimeoutInvalid: (value: string) =>
+      `Timeout de conexão inválido: ${value}. Use um inteiro em ms entre 1 e 600000.`,
     connectionConfigNotFound: (name: string) =>
       `Conexão "${name}" não encontrada no arquivo de configuração.`,
     connectionFailed: 'Conexão não estabelecida',
@@ -129,6 +134,7 @@ const enMessages: Messages = {
     optionPassword: 'Database password',
     optionDatabase: 'Database name',
     optionSsl: 'Enable SSL',
+    optionConnectTimeout: 'Connection timeout in ms (e.g. 15000)',
     optionConnectionName: 'Connection name in configuration file',
     loadingConfig: 'Loading configuration...',
     connecting: (dbType: string) => `Trying to connect to ${dbType} database...`,
@@ -161,6 +167,8 @@ const enMessages: Messages = {
     configDbTypeOrConnectionStringRequired: 'Database type (type) or connectionString is required.',
     configDbTypeRequired:
       'Database configuration not found. Set environment variables or create a configuration file.',
+    configDbConnectTimeoutInvalid: (value: string) =>
+      `Invalid connection timeout: ${value}. Use an integer in ms between 1 and 600000.`,
     connectionConfigNotFound: (name: string) =>
       `Connection "${name}" not found in configuration file.`,
     connectionFailed: 'Connection not established',
@@ -185,6 +193,7 @@ const esMessages: Messages = {
     optionPassword: 'Contraseña de la base de datos',
     optionDatabase: 'Nombre de la base de datos',
     optionSsl: 'Habilitar SSL',
+    optionConnectTimeout: 'Timeout de conexión en ms (p.ej. 15000)',
     optionConnectionName: 'Nombre de la conexión en el archivo de configuración',
     loadingConfig: 'Cargando configuración...',
     connecting: (dbType: string) => `Intentando conectar a la base de datos ${dbType}...`,
@@ -223,6 +232,8 @@ const esMessages: Messages = {
       'El tipo de base de datos (type) o connectionString es obligatorio.',
     configDbTypeRequired:
       'Configuración de base de datos no encontrada. Defina las variables de entorno o cree un archivo de configuración.',
+    configDbConnectTimeoutInvalid: (value: string) =>
+      `Timeout de conexión inválido: ${value}. Use un entero en ms entre 1 y 600000.`,
     connectionConfigNotFound: (name: string) =>
       `Conexión "${name}" no encontrada en el archivo de configuración.`,
     connectionFailed: 'Conexión no establecida',

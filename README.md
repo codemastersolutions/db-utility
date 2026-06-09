@@ -80,7 +80,8 @@ The configuration file allows you to define CLI language, output directories, na
     "username": "myuser",
     "password": "mypassword",
     "database": "mydb",
-    "ssl": false
+    "ssl": false,
+    "connectTimeoutMs": 15000
   },
   "connections": {
     "development": {
@@ -89,7 +90,8 @@ The configuration file allows you to define CLI language, output directories, na
       "port": 3306,
       "username": "root",
       "password": "password",
-      "database": "dev_db"
+      "database": "dev_db",
+      "connectTimeoutMs": 15000
     },
     "production": {
       "type": "postgres",
@@ -98,7 +100,8 @@ The configuration file allows you to define CLI language, output directories, na
       "username": "admin",
       "password": "secure_password",
       "database": "prod_db",
-      "ssl": true
+      "ssl": true,
+      "connectTimeoutMs": 15000
     }
   }
 }
@@ -200,6 +203,7 @@ DB_PORT=5432
 DB_USER=myuser
 DB_PASSWORD=mypassword
 DB_NAME=mydb
+DB_CONNECT_TIMEOUT_MS=15000
 ```
 
 ## CLI Commands & Flags
@@ -228,6 +232,7 @@ DB_NAME=mydb
 | `-p, --password <password>` | Database password                             |
 | `-d, --database <database>` | Database name                                 |
 | `--ssl`                     | Enable SSL connection                         |
+| `--connect-timeout <ms>`    | Connection timeout (ms)                       |
 
 ### Commands
 

@@ -1,11 +1,12 @@
-import { ConnectionPool, config as MssqlConfig } from 'mssql';
+import { ConnectionPool } from 'mssql';
+import type { config as MssqlConfig } from 'mssql';
 import { DbUtilityError } from '../../errors/DbUtilityError';
 import { DatabaseConfig, IDatabaseConnector, QueryOptions } from '../../types/database';
 import { assertSafeSql } from '../SqlSafety';
 
 export class MssqlConnector implements IDatabaseConnector {
   private pool: ConnectionPool | null = null;
-  private config: DatabaseConfig;
+  private readonly config: DatabaseConfig;
 
   constructor(config: DatabaseConfig) {
     this.config = config;
@@ -18,6 +19,9 @@ export class MssqlConnector implements IDatabaseConnector {
       user: this.config.username,
       password: this.config.password,
       database: this.config.database,
+      ...(this.config.connectTimeoutMs === undefined
+        ? {}
+        : { connectionTimeout: this.config.connectTimeoutMs }),
       options: {
         encrypt: this.config.ssl !== false, // Azure precisa de encrypt: true
         trustServerCertificate: !this.config.ssl, // Dev local geralmente precisa de true
@@ -25,15 +29,18 @@ export class MssqlConnector implements IDatabaseConnector {
     };
 
     if (this.config.connectionString) {
-      await this.connectWithUri(this.config.connectionString);
+      if (this.config.connectTimeoutMs === undefined) {
+        this.pool = new ConnectionPool(this.config.connectionString);
+      } else {
+        const poolConfig = {
+          ...(mssqlConfig as unknown as Record<string, unknown>),
+          connectionString: this.config.connectionString,
+        };
+        this.pool = new ConnectionPool(poolConfig as unknown as MssqlConfig);
+      }
     } else {
       this.pool = new ConnectionPool(mssqlConfig);
-      await this.pool.connect();
     }
-  }
-
-  private async connectWithUri(uri: string): Promise<void> {
-    this.pool = new ConnectionPool(uri);
     await this.pool.connect();
   }
 
