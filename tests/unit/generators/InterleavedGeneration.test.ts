@@ -99,7 +99,7 @@ describe('Interleaved Generation', () => {
     expect(files).toHaveLength(4);
 
     // Sort by filename to check order
-    const sortedFiles = files.sort((a, b) => a.fileName.localeCompare(b.fileName));
+    const sortedFiles = files.toSorted((a, b) => a.fileName.localeCompare(b.fileName));
 
     expect(sortedFiles[0].fileName).toContain('create-Users');
     expect(sortedFiles[1].fileName).toContain('seed-Users');
@@ -125,10 +125,10 @@ describe('Interleaved Generation', () => {
     expect(files).toHaveLength(3);
 
     // TypeORM filenames use timestamps, check logical ordering by sorting
-    const sortedFiles = files.sort((a, b) => {
+    const sortedFiles = files.toSorted((a, b) => {
       // Filenames are like {timestamp}-{name}.ts
-      const tA = parseInt(a.fileName.split('-')[0]);
-      const tB = parseInt(b.fileName.split('-')[0]);
+      const tA = Number.parseInt(a.fileName.split('-')[0]);
+      const tB = Number.parseInt(b.fileName.split('-')[0]);
       return tA - tB;
     });
 

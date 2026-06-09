@@ -7,8 +7,8 @@ import { MysqlIntrospector } from './MysqlIntrospector';
 import { PostgresIntrospector } from './PostgresIntrospector';
 
 export class IntrospectionService {
-  private connector: IDatabaseConnector;
-  private config: DatabaseConfig;
+  private readonly connector: IDatabaseConnector;
+  private readonly config: DatabaseConfig;
 
   constructor(connector: IDatabaseConnector, config: DatabaseConfig) {
     if (!config.type) {

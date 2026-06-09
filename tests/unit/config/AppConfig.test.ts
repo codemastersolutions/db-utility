@@ -1,8 +1,8 @@
-import fs from 'fs';
+import fs from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppConfigLoader } from '../../../src/config/AppConfig';
 
-vi.mock('fs');
+vi.mock('node:fs');
 
 describe('AppConfigLoader', () => {
   const originalEnv = process.env;

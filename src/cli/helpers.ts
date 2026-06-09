@@ -1,4 +1,4 @@
-import { join } from 'path';
+import { join } from 'node:path';
 import { AppConfig } from '../config/AppConfig';
 
 export const resolveMigrationOutputDir = (
@@ -10,7 +10,7 @@ export const resolveMigrationOutputDir = (
     return cliOutputOption;
   }
 
-  if (appConfig.migrations && appConfig.migrations.outputDir) {
+  if (appConfig.migrations?.outputDir) {
     return join(cwd, appConfig.migrations.outputDir);
   }
 

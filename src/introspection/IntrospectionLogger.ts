@@ -1,5 +1,5 @@
-import { mkdirSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { AppConfig } from '../config/AppConfig';
 import { DatabaseConfig } from '../types/database';
 import { DatabaseSchema } from '../types/introspection';

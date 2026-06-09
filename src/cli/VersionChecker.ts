@@ -1,9 +1,9 @@
-import { execSync, spawn } from 'child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
-import https from 'https';
+import { execSync, spawn } from 'node:child_process';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import https from 'node:https';
 import inquirer from 'inquirer';
-import { homedir } from 'os';
-import { join } from 'path';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { VersionCheckConfig } from '../config/AppConfig';
 
 interface LastCheckInfo {
@@ -11,11 +11,11 @@ interface LastCheckInfo {
 }
 
 export class VersionChecker {
-  private config: VersionCheckConfig;
-  private currentVersion: string;
-  private pkgName = '@codemastersolutions/db-utility';
-  private storageDir: string;
-  private storagePath: string;
+  private readonly config: VersionCheckConfig;
+  private readonly currentVersion: string;
+  private readonly pkgName = '@codemastersolutions/db-utility';
+  private readonly storageDir: string;
+  private readonly storagePath: string;
 
   constructor(currentVersion: string, config?: VersionCheckConfig) {
     this.currentVersion = currentVersion;
@@ -40,7 +40,7 @@ export class VersionChecker {
         const updated = await this.promptAndUpdate(latestVersion);
         return !updated;
       }
-    } catch (error) {
+    } catch {
       // Silent fail to not interrupt user flow
     }
     return true;

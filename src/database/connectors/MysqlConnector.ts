@@ -6,7 +6,7 @@ import { assertSafeSql } from '../SqlSafety';
 
 export class MysqlConnector implements IDatabaseConnector {
   private pool: Pool | null = null;
-  private config: DatabaseConfig;
+  private readonly config: DatabaseConfig;
 
   constructor(config: DatabaseConfig) {
     this.config = config;
@@ -20,9 +20,9 @@ export class MysqlConnector implements IDatabaseConnector {
       password: this.config.password,
       database: this.config.database,
       ssl: this.config.ssl ? { rejectUnauthorized: false } : undefined,
-      ...(this.config.connectTimeoutMs !== undefined
-        ? { connectTimeout: this.config.connectTimeoutMs }
-        : {}),
+      ...(this.config.connectTimeoutMs === undefined
+        ? {}
+        : { connectTimeout: this.config.connectTimeoutMs }),
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0,
@@ -30,9 +30,9 @@ export class MysqlConnector implements IDatabaseConnector {
 
     if (this.config.connectionString) {
       const poolConfig: PoolOptions & { uri: string } = {
-        ...(this.config.connectTimeoutMs !== undefined
-          ? { connectTimeout: this.config.connectTimeoutMs }
-          : {}),
+        ...(this.config.connectTimeoutMs === undefined
+          ? {}
+          : { connectTimeout: this.config.connectTimeoutMs }),
         ...(this.config.ssl ? { ssl: { rejectUnauthorized: false } } : {}),
         uri: this.config.connectionString,
         waitForConnections: true,

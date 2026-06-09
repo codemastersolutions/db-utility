@@ -23,7 +23,7 @@ describe('topologicalSort', () => {
 
     const sorted = topologicalSort(schema);
     expect(sorted).toHaveLength(2);
-    expect(sorted.map((t) => t.name).sort()).toEqual(['A', 'B']);
+    expect(sorted.map((t) => t.name).sort((a, b) => a.localeCompare(b))).toEqual(['A', 'B']);
   });
 
   it('deve ordenar tabelas com dependências simples (B depende de A)', () => {
@@ -35,7 +35,7 @@ describe('topologicalSort', () => {
 
     const sorted = topologicalSort(schema);
     const names = sorted.map((t) => t.name);
-    
+
     expect(names.indexOf('A')).toBeLessThan(names.indexOf('B'));
   });
 

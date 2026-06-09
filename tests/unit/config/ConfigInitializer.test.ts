@@ -1,6 +1,6 @@
-import { mkdtempSync, readFileSync, rmSync } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { ConfigInitializer } from '../../../src/config/ConfigInitializer';
 

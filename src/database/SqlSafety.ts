@@ -30,7 +30,7 @@ export function assertSafeSql(sql: string): void {
   ];
 
   for (const keyword of forbiddenKeywords) {
-    const pattern = new RegExp(`\\b${keyword}\\b`, 'i');
+    const pattern = new RegExp(String.raw`\b${keyword}\b`, 'i');
     if (pattern.test(sql)) {
       throw new DbUtilitySecurityError('UNSAFE_OPERATION');
     }

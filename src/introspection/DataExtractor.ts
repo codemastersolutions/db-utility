@@ -4,8 +4,8 @@ import { DataTableConfig } from '../config/AppConfig';
 
 export class DataExtractor {
   constructor(
-    private connector: IDatabaseConnector,
-    private type: DatabaseType,
+    private readonly connector: IDatabaseConnector,
+    private readonly type: DatabaseType,
   ) {}
 
   async extract(
@@ -17,7 +17,8 @@ export class DataExtractor {
     for (const tableConfig of tables) {
       const tableName = typeof tableConfig === 'string' ? tableConfig : tableConfig.table;
       const whereClause = typeof tableConfig === 'string' ? undefined : tableConfig.where;
-      const disableIdentity = typeof tableConfig === 'string' ? undefined : tableConfig.disableIdentity;
+      const disableIdentity =
+        typeof tableConfig === 'string' ? undefined : tableConfig.disableIdentity;
 
       const targetName = tableName.toLowerCase();
       const table = schema.tables.find((t) => t.name.toLowerCase() === targetName);

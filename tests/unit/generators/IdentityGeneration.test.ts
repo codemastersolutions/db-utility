@@ -64,7 +64,7 @@ describe('Identity Generation', () => {
     const content = files[0].content;
     expect(content).toContain("queryRunner.connection.driver.options.type === 'postgres'");
     expect(content).toContain(
-      'SELECT setval(pg_get_serial_sequence(\\\'"Users"\\\', \\\'id\\\'), MAX("id")) FROM "Users"',
+      String.raw`SELECT setval(pg_get_serial_sequence(\'"Users"\', \'id\'), MAX("id")) FROM "Users"`,
     );
   });
 });

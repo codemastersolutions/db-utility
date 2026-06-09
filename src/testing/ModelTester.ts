@@ -1,10 +1,10 @@
-import { execSync } from 'child_process';
-import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'fs';
-import { join, resolve } from 'path';
+import { execSync } from 'node:child_process';
+import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
+import { join } from 'node:path';
 import { DatabaseConfig } from '../types/database';
 
 export class ModelTester {
-  constructor(private config: DatabaseConfig) {}
+  constructor(private readonly config: DatabaseConfig) {}
 
   async test(target: string, modelsDir: string) {
     const pkgManager = this.detectPackageManager();
@@ -125,11 +125,11 @@ export class ModelTester {
 
   private async testSequelize(modelsDir: string) {
     const testFile = join(modelsDir, 'test-sequelize-models.ts');
-    
+
     // We need to list all model files to import them
     // Assuming modelsDir contains .ts files for models
     // But we need to run this script. If we use ts-node, we can import .ts.
-    
+
     const script = `
 import { Sequelize, DataTypes } from 'sequelize';
 import * as fs from 'fs';
@@ -152,27 +152,27 @@ async function run() {
 
     // Find all model files
     const files = fs.readdirSync('${modelsDir}').filter(f => f.endsWith('.ts') && f !== 'test-sequelize-models.ts');
-    
+
     for (const file of files) {
       const modelName = path.basename(file, '.ts');
       console.log(\`Testing model: \${modelName}\`);
-      
+
       // Dynamic import of the model
       // Note: In generated models, we export a class and an init function.
       // We need to import the file.
       // Since we are running this script with ts-node, we can use require or import.
-      
+
       const modelModule = require(path.join('${modelsDir}', file));
-      
+
       // Check if it has init function
       if (typeof modelModule.init === 'function') {
         const Model = modelModule.init(sequelize);
-        
+
         // Try a simple query
         try {
           const count = await Model.count();
           console.log(\`✅ \${modelName}: Count query successful (Rows: \${count})\`);
-          
+
           const item = await Model.findOne();
           if (item) {
              console.log(\`   Sample data: \${JSON.stringify(item.toJSON())}\`);
@@ -212,7 +212,7 @@ run();
 
   private async testTypeORM(modelsDir: string) {
     const testFile = join(modelsDir, 'test-typeorm-models.ts');
-    
+
     const script = `
 import { DataSource } from 'typeorm';
 import * as fs from 'fs';
@@ -247,12 +247,12 @@ async function run() {
       const metadata = dataSource.getMetadata(entity);
       const tableName = metadata.tableName;
       console.log(\`Testing entity: \${metadata.name} (Table: \${tableName})\`);
-      
+
       try {
         const repo = dataSource.getRepository(entity);
         const count = await repo.count();
         console.log(\`✅ \${metadata.name}: Count query successful (Rows: \${count})\`);
-        
+
         const item = await repo.findOne({ where: {} });
         if (item) {
            console.log(\`   Sample data: \${JSON.stringify(item)}\`);
@@ -274,9 +274,9 @@ async function run() {
 
 run();
     `;
-    
+
     writeFileSync(testFile, script);
-    
+
     console.log(`Running test script: ${testFile}`);
     try {
       execSync(`npx ts-node "${testFile}"`, { stdio: 'inherit' });
@@ -295,7 +295,7 @@ run();
     if (!existsSync(schemaPath)) {
       throw new Error(`schema.prisma not found in ${modelsDir}`);
     }
-    
+
     try {
       execSync(`npx prisma generate --schema="${schemaPath}"`, { stdio: 'inherit' });
     } catch (e) {
@@ -304,10 +304,10 @@ run();
     }
 
     const testFile = join(modelsDir, 'test-prisma-models.ts');
-    
+
     // Need to parse schema to get model names or inspect PrismaClient
     // We can inspect the PrismaClient instance
-    
+
     const script = `
 import { PrismaClient } from '@prisma/client';
 
@@ -317,20 +317,20 @@ async function run() {
   try {
     await prisma.$connect();
     console.log('Connected to database via Prisma');
-    
+
     // Get all model names from Prisma Client internals (dmmf)
     // Accessing internal property _dmmf
     // @ts-ignore
     const models = prisma._dmmf.datamodel.models;
-    
+
     for (const model of models) {
       const modelName = model.name;
       console.log(\`Testing model: \${modelName}\`);
-      
+
       try {
         // @ts-ignore
         const delegate = prisma[modelName.toLowerCase()]; // Prisma client uses lowercase or camelCase? Usually lowerCamelCase
-        
+
         if (!delegate) {
            // Try exact name if needed
            // @ts-ignore
@@ -340,7 +340,7 @@ async function run() {
         if (delegate) {
            const count = await delegate.count();
            console.log(\`✅ \${modelName}: Count query successful (Rows: \${count})\`);
-           
+
            const item = await delegate.findFirst();
            if (item) {
               console.log(\`   Sample data: \${JSON.stringify(item)}\`);
@@ -365,7 +365,7 @@ run();
     `;
 
     writeFileSync(testFile, script);
-    
+
     console.log(`Running test script: ${testFile}`);
     try {
       execSync(`npx ts-node "${testFile}"`, { stdio: 'inherit' });

@@ -81,10 +81,10 @@ export class PrismaGenerator implements SchemaGenerator {
     }
 
     if (!col.isPrimaryKey) {
-      if (!col.isNullable) {
-        // Prisma fields are required by default, optional with ?
-      } else {
+      if (col.isNullable) {
         mods += '?';
+      } else {
+        // Prisma fields are required by default, optional with ?
       }
     }
 

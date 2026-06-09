@@ -1,6 +1,5 @@
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import { join } from 'path';
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
 
 const execAsync = promisify(exec);
 
@@ -162,9 +161,7 @@ export class PackageManager {
     try {
       // Use npm view to find versions
       const pm = await this.detectPm();
-      const { stdout } = await execAsync(
-        `${pm} view ${packageName} versions --json`,
-      );
+      const { stdout } = await execAsync(`${pm} view ${packageName} versions --json`);
       const versions: string[] = JSON.parse(stdout);
 
       // Filter versions starting with versionInput
@@ -205,7 +202,7 @@ export class PackageManager {
       } catch {
         return null;
       }
-    } catch (e) {
+    } catch {
       return null;
     }
   }

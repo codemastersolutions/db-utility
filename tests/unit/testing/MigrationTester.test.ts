@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MigrationTester } from '../../../src/testing/MigrationTester';
 import { ContainerManager } from '../../../src/testing/ContainerManager';
 import { ConnectionFactory } from '../../../src/database/ConnectionFactory';
-import * as fs from 'fs';
+import * as fs from 'node:fs';
 import { SequelizeRunner } from '../../../src/testing/runners/SequelizeRunner';
 import { PackageManager } from '../../../src/utils/PackageManager';
 
@@ -215,12 +215,7 @@ describe('MigrationTester', () => {
     });
     expect(fs.chmodSync).toHaveBeenCalledWith(expect.stringContaining('exports'), '777');
 
-    const backupDir = require('path').join(
-      process.cwd(),
-      'exports',
-      'backups',
-      'Postgres 14',
-    );
+    const backupDir = require('node:path').join(process.cwd(), 'exports', 'backups', 'Postgres 14');
     expect(containerManager.startContainer).toHaveBeenCalledWith(
       expect.stringContaining('postgres:14'),
       expect.any(Object),

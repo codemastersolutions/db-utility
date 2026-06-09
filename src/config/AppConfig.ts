@@ -245,36 +245,24 @@ export class AppConfigLoader {
       frequency: raw.versionCheck?.frequency || defaultConfig.versionCheck!.frequency,
     };
 
-    const introspectionOutputDir =
-      raw.introspection && raw.introspection.outputDir
-        ? raw.introspection.outputDir
-        : defaultConfig.introspection.outputDir;
+    const introspectionOutputDir = raw.introspection?.outputDir
+      ? raw.introspection.outputDir
+      : defaultConfig.introspection.outputDir;
 
-    const migrationsOutputDir =
-      raw.migrations && raw.migrations.outputDir ? raw.migrations.outputDir : undefined;
+    const migrationsOutputDir = raw.migrations?.outputDir ? raw.migrations.outputDir : undefined;
 
-    const fileNamePatternRaw =
-      raw.migrations && raw.migrations.fileNamePattern
-        ? raw.migrations.fileNamePattern
-        : defaultConfig.migrations.fileNamePattern;
+    const fileNamePatternRaw = raw.migrations?.fileNamePattern
+      ? raw.migrations.fileNamePattern
+      : defaultConfig.migrations.fileNamePattern;
 
     const fileNamePattern: 'timestamp-prefix' | 'prefix-timestamp' =
       fileNamePatternRaw === 'prefix-timestamp' ? 'prefix-timestamp' : 'timestamp-prefix';
 
-    const data =
-      raw.migrations && raw.migrations.data !== undefined
-        ? raw.migrations.data
-        : defaultConfig.migrations.data;
+    const data = raw.migrations?.data ?? defaultConfig.migrations.data;
 
-    const dataTables =
-      raw.migrations && raw.migrations.dataTables
-        ? raw.migrations.dataTables
-        : defaultConfig.migrations.dataTables;
+    const dataTables = raw.migrations?.dataTables ?? defaultConfig.migrations.dataTables;
 
-    const backup =
-      raw.migrations && raw.migrations.backup !== undefined
-        ? raw.migrations.backup
-        : defaultConfig.migrations.backup;
+    const backup = raw.migrations?.backup ?? defaultConfig.migrations.backup;
 
     return {
       language,
