@@ -78,8 +78,9 @@ ${table.indexes
 ${table.columns.map((c) => this.generateMigrationColumn(c, !hasAutoIncrement, false)).join(',\n')}
     });`;
 
-      const pkConstraintsPart = !hasAutoIncrement
-        ? table.indexes
+      const pkConstraintsPart = hasAutoIncrement
+        ? ''
+        : table.indexes
             .filter((idx) => idx.isPrimary)
             .map(
               (idx) =>
@@ -89,8 +90,7 @@ ${table.columns.map((c) => this.generateMigrationColumn(c, !hasAutoIncrement, fa
       name: '${idx.name}'
     });`,
             )
-            .join('\n    ')
-        : '';
+            .join('\n    ');
 
       const indexesPart = table.indexes
         .filter((idx) => !idx.isPrimary)
@@ -184,9 +184,7 @@ module.exports = {
           const autoIncCol = tableData.columns.find((c) => c.isAutoIncrement);
           const autoIncColName = autoIncCol ? autoIncCol.name : null;
           const hasAutoIncInData =
-            autoIncColName &&
-            rows.length > 0 &&
-            Object.prototype.hasOwnProperty.call(rows[0], autoIncColName);
+            autoIncColName && rows.length > 0 && Object.hasOwn(rows[0], autoIncColName);
 
           const useIdentityInsert = disableIdentity && !!hasAutoIncInData && !!autoIncColName;
           const usePostgresSequenceReset =
@@ -208,14 +206,14 @@ module.exports = {
                     } else if (typeof normalized === 'boolean') {
                       normalized = normalized ? 1 : 0;
                     }
-                    const escaped = String(normalized).replace(/'/g, "''");
+                    const escaped = String(normalized).replaceAll("'", "''");
                     return `'${escaped}'`;
                   })
                   .join(', ');
                 return `INSERT INTO [${table.name}] (${columns}) VALUES (${values});`;
               })
-              .join('\\n');
-            mssqlBatch = `SET IDENTITY_INSERT [${table.name}] ON;\\n${statements}\\nSET IDENTITY_INSERT [${table.name}] OFF;`;
+              .join(String.raw`\n`);
+            mssqlBatch = String.raw`SET IDENTITY_INSERT [${table.name}] ON;\n${statements}\nSET IDENTITY_INSERT [${table.name}] OFF;`;
           }
 
           const identityInsertBlock = useIdentityInsert
@@ -229,9 +227,9 @@ module.exports = {
             await queryInterface.bulkInsert('${table.name}', [row], { transaction });
           }${
             usePostgresSequenceReset && autoIncColName
-              ? `
+              ? String.raw`
           if (dialect === 'postgres') {
-            await queryInterface.sequelize.query('SELECT setval(pg_get_serial_sequence(\\'"${table.name}"\\', \\'${autoIncColName}\\'), MAX("${autoIncColName}")) FROM "${table.name}";', { transaction });
+            await queryInterface.sequelize.query('SELECT setval(pg_get_serial_sequence(\'"${table.name}"\', \'${autoIncColName}\'), MAX("${autoIncColName}")) FROM "${table.name}";', { transaction });
           }`
               : ''
           }
@@ -292,9 +290,7 @@ module.exports = {
       const autoIncCol = tableData.columns.find((c) => c.isAutoIncrement);
       const autoIncColName = autoIncCol ? autoIncCol.name : null;
       const hasAutoIncInData =
-        autoIncColName &&
-        rows.length > 0 &&
-        Object.prototype.hasOwnProperty.call(rows[0], autoIncColName);
+        autoIncColName && rows.length > 0 && Object.hasOwn(rows[0], autoIncColName);
 
       const disableIdentity = tableData.disableIdentity ?? false;
       const useIdentityInsert = disableIdentity && !!hasAutoIncInData && !!autoIncColName;
@@ -316,14 +312,14 @@ module.exports = {
                 } else if (typeof normalized === 'boolean') {
                   normalized = normalized ? 1 : 0;
                 }
-                const escaped = String(normalized).replace(/'/g, "''");
+                const escaped = String(normalized).replaceAll("'", "''");
                 return `'${escaped}'`;
               })
               .join(', ');
             return `INSERT INTO [${tableData.tableName}] (${columns}) VALUES (${values});`;
           })
-          .join('\\n');
-        mssqlBatch = `SET IDENTITY_INSERT [${tableData.tableName}] ON;\\n${statements}\\nSET IDENTITY_INSERT [${tableData.tableName}] OFF;`;
+          .join(String.raw`\n`);
+        mssqlBatch = String.raw`SET IDENTITY_INSERT [${tableData.tableName}] ON;\n${statements}\nSET IDENTITY_INSERT [${tableData.tableName}] OFF;`;
       }
 
       const identityInsertBlock = useIdentityInsert
@@ -337,9 +333,9 @@ module.exports = {
             await queryInterface.bulkInsert('${tableData.tableName}', [row], { transaction });
           }${
             usePostgresSequenceReset && autoIncColName
-              ? `
+              ? String.raw`
           if (dialect === 'postgres') {
-            await queryInterface.sequelize.query('SELECT setval(pg_get_serial_sequence(\\'"${tableData.tableName}"\\', \\'${autoIncColName}\\'), MAX("${autoIncColName}")) FROM "${tableData.tableName}";', { transaction });
+            await queryInterface.sequelize.query('SELECT setval(pg_get_serial_sequence(\'"${tableData.tableName}"\', \'${autoIncColName}\'), MAX("${autoIncColName}")) FROM "${tableData.tableName}";', { transaction });
           }`
               : ''
           }
@@ -468,7 +464,7 @@ module.exports = {
     if (col.hasDefault && col.defaultValue) {
       // Raw values might need cleaning, using string for safety
       parts.push(
-        `        defaultValue: Sequelize.literal('${col.defaultValue.replace(/'/g, "\\'")}')`,
+        `        defaultValue: Sequelize.literal('${col.defaultValue.replaceAll("'", "\\'")}')`,
       );
     }
 

@@ -100,9 +100,7 @@ export class PostgresIntrospector extends BaseIntrospector {
         defaultValue: c.column_default,
         isPrimaryKey: pkSet ? pkSet.has(c.column_name) : false,
         isUnique: uniqueSet ? uniqueSet.has(c.column_name) : false,
-        isAutoIncrement:
-          (c.column_default !== null && c.column_default.includes('nextval')) ||
-          c.is_identity === 'YES',
+        isAutoIncrement: c.column_default?.includes('nextval') || c.is_identity === 'YES',
         maxLength: c.character_maximum_length,
         numericPrecision: c.numeric_precision,
         numericScale: c.numeric_scale,

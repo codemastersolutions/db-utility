@@ -1,6 +1,6 @@
 import dotenv from 'dotenv';
-import { existsSync, readFileSync } from 'fs';
-import { extname, resolve } from 'path';
+import { existsSync, readFileSync } from 'node:fs';
+import { extname, resolve } from 'node:path';
 import { DbUtilityError } from '../errors/DbUtilityError';
 
 dotenv.config();
@@ -86,8 +86,14 @@ export class AppConfigLoader {
 
     if (envVersionCheck || fileVersionCheck) {
       merged.versionCheck = {
-        enabled: fileVersionCheck?.enabled ?? envVersionCheck?.enabled ?? defaultConfig.versionCheck!.enabled,
-        frequency: fileVersionCheck?.frequency ?? envVersionCheck?.frequency ?? defaultConfig.versionCheck!.frequency,
+        enabled:
+          fileVersionCheck?.enabled ??
+          envVersionCheck?.enabled ??
+          defaultConfig.versionCheck!.enabled,
+        frequency:
+          fileVersionCheck?.frequency ??
+          envVersionCheck?.frequency ??
+          defaultConfig.versionCheck!.frequency,
       };
     }
 
@@ -127,9 +133,9 @@ export class AppConfigLoader {
       merged.migrations = {
         fileNamePattern,
         ...(migrationsOutputDir ? { outputDir: migrationsOutputDir } : {}),
-        ...(migrationsData !== undefined ? { data: migrationsData } : {}),
+        ...(migrationsData === undefined ? {} : { data: migrationsData }),
         ...(migrationsDataTables ? { dataTables: migrationsDataTables } : {}),
-        ...(migrationsBackup !== undefined ? { backup: migrationsBackup } : {}),
+        ...(migrationsBackup === undefined ? {} : { backup: migrationsBackup }),
       };
     }
 
@@ -159,7 +165,7 @@ export class AppConfigLoader {
       process.env.DBUTILITY_LANGUAGE ||
       process.env.LANG;
     const rawTarget = process.env.DB_UTILITY_TARGET || process.env.DBUTILITY_TARGET;
-    
+
     const rawVersionCheckEnabled = process.env.DB_UTILITY_VERSION_CHECK_ENABLED;
     const rawVersionCheckFrequency = process.env.DB_UTILITY_VERSION_CHECK_FREQUENCY;
 
@@ -221,9 +227,9 @@ export class AppConfigLoader {
       config.migrations = {
         fileNamePattern,
         ...(rawMigrationsOutputDir ? { outputDir: rawMigrationsOutputDir } : {}),
-        ...(data !== undefined ? { data } : {}),
+        ...(data === undefined ? {} : { data }),
         ...(dataTables ? { dataTables } : {}),
-        ...(backup !== undefined ? { backup } : {}),
+        ...(backup === undefined ? {} : { backup }),
       };
     }
 
@@ -235,12 +241,8 @@ export class AppConfigLoader {
     const target = raw.target;
 
     const versionCheck: VersionCheckConfig = {
-      enabled:
-        raw.versionCheck?.enabled !== undefined
-          ? raw.versionCheck.enabled
-          : defaultConfig.versionCheck!.enabled,
-      frequency:
-        raw.versionCheck?.frequency || defaultConfig.versionCheck!.frequency,
+      enabled: raw.versionCheck?.enabled ?? defaultConfig.versionCheck!.enabled,
+      frequency: raw.versionCheck?.frequency || defaultConfig.versionCheck!.frequency,
     };
 
     const introspectionOutputDir =

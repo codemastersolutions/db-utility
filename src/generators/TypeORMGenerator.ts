@@ -137,11 +137,11 @@ ${
             : '';
 
           const postInsert = tableData.disableIdentity
-            ? `
+            ? String.raw`
     if (queryRunner.connection.driver.options.type === 'mssql') {
       await queryRunner.query('SET IDENTITY_INSERT "${tableData.tableName}" OFF');
     } else if (queryRunner.connection.driver.options.type === 'postgres' && '${autoIncColName}') {
-      await queryRunner.query('SELECT setval(pg_get_serial_sequence(\\'"${tableData.tableName}"\\', \\'${autoIncColName}\\'), MAX("${autoIncColName}")) FROM "${tableData.tableName}";');
+      await queryRunner.query('SELECT setval(pg_get_serial_sequence(\'"${tableData.tableName}"\', \'${autoIncColName}\'), MAX("${autoIncColName}")) FROM "${tableData.tableName}";');
     }`
             : '';
 
@@ -199,11 +199,11 @@ export class ${seedMigrationName} implements MigrationInterface {
         : '';
 
       const postInsert = tableData.disableIdentity
-        ? `
+        ? String.raw`
     if (queryRunner.connection.driver.options.type === 'mssql') {
       await queryRunner.query('SET IDENTITY_INSERT "${tableData.tableName}" OFF');
     } else if (queryRunner.connection.driver.options.type === 'postgres' && '${autoIncColName}') {
-      await queryRunner.query('SELECT setval(pg_get_serial_sequence(\\'"${tableData.tableName}"\\', \\'${autoIncColName}\\'), MAX("${autoIncColName}")) FROM "${tableData.tableName}";');
+      await queryRunner.query('SELECT setval(pg_get_serial_sequence(\'"${tableData.tableName}"\', \'${autoIncColName}\'), MAX("${autoIncColName}")) FROM "${tableData.tableName}";');
     }`
         : '';
 
@@ -257,7 +257,7 @@ export class ${migrationName} implements MigrationInterface {
     if (col.isNullable) options.push('nullable: true');
     if (col.isUnique) options.push('unique: true');
     if (col.hasDefault && col.defaultValue) {
-      options.push(`default: () => "${col.defaultValue.replace(/"/g, '\\"')}"`);
+      options.push(`default: () => "${col.defaultValue.replaceAll('"', '\\"')}"`);
     }
 
     // TypeScript type
@@ -280,7 +280,7 @@ export class ${migrationName} implements MigrationInterface {
     if (col.isNullable) parts.push('      isNullable: true');
     if (col.isUnique) parts.push('      isUnique: true');
     if (col.hasDefault && col.defaultValue) {
-      parts.push(`      default: "${col.defaultValue.replace(/"/g, '\\"')}"`);
+      parts.push(`      default: "${col.defaultValue.replaceAll('"', '\\"')}"`);
     }
 
     return `      {

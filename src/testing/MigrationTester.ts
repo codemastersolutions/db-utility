@@ -1,5 +1,5 @@
-import { join } from 'path';
-import { existsSync, readFileSync, mkdirSync, chmodSync, unlinkSync } from 'fs';
+import { join } from 'node:path';
+import { existsSync, readFileSync, mkdirSync, chmodSync, unlinkSync } from 'node:fs';
 import { ContainerManager } from './ContainerManager';
 import { MigrationRunner } from './runners/MigrationRunner';
 import { SequelizeRunner } from './runners/SequelizeRunner';
@@ -23,8 +23,8 @@ interface InstallConfig {
 }
 
 export class MigrationTester {
-  private containerManager: ContainerManager;
-  private packageManager: PackageManager;
+  private readonly containerManager: ContainerManager;
+  private readonly packageManager: PackageManager;
 
   constructor(containerManager?: ContainerManager) {
     this.containerManager = containerManager || new ContainerManager();
@@ -157,9 +157,9 @@ export class MigrationTester {
         const pkgRaw = readFileSync(pkgPath, 'utf-8');
         const pkg = JSON.parse(pkgRaw);
         const deps = {
-          ...(pkg.dependencies || {}),
-          ...(pkg.devDependencies || {}),
-          ...(pkg.peerDependencies || {}),
+          ...pkg.dependencies,
+          ...pkg.devDependencies,
+          ...pkg.peerDependencies,
         };
         hasOrmInPackageJson = !!deps[target];
       } catch (e) {
@@ -266,7 +266,7 @@ export class MigrationTester {
   }
 
   private extractVersionNumber(versionString: string): string {
-    const match = versionString.match(/(\d+(\.\d+)?)/);
+    const match = new RegExp(/(\d+(\.\d+)?)/).exec(versionString);
     return match ? match[1] : 'latest';
   }
 
@@ -498,7 +498,7 @@ export class MigrationTester {
         await connector.disconnect();
         console.log('Database is ready.');
         return;
-      } catch (e) {
+      } catch {
         await new Promise((r) => setTimeout(r, 2000)); // Wait 2s
       }
     }
