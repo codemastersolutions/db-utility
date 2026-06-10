@@ -8,7 +8,7 @@ import { SequelizeRunner } from '../../../src/testing/runners/SequelizeRunner';
 import { PackageManager } from '../../../src/utils/PackageManager';
 
 const SequelizeRunnerMock = SequelizeRunner as unknown as {
-  mockImplementation: (fn: () => unknown) => void;
+  mockImplementation: (fn: new () => unknown) => void;
 };
 
 vi.mock('../../../src/testing/ContainerManager');
@@ -20,9 +20,15 @@ vi.mock('node:fs', () => ({
   chmodSync: vi.fn(),
   unlinkSync: vi.fn(),
 }));
-vi.mock('../../../src/testing/runners/SequelizeRunner');
-vi.mock('../../../src/testing/runners/TypeORMRunner');
-vi.mock('../../../src/utils/PackageManager');
+vi.mock('../../../src/testing/runners/SequelizeRunner', () => ({
+  SequelizeRunner: vi.fn(),
+}));
+vi.mock('../../../src/testing/runners/TypeORMRunner', () => ({
+  TypeORMRunner: vi.fn(),
+}));
+vi.mock('../../../src/utils/PackageManager', () => ({
+  PackageManager: vi.fn(),
+}));
 vi.mock('inquirer', () => ({
   default: {
     prompt: vi.fn().mockResolvedValue({
@@ -58,9 +64,11 @@ describe('MigrationTester', () => {
       getInstalledVersion: vi.fn().mockResolvedValue('6.37.5'),
     };
     const PackageManagerMock = PackageManager as unknown as {
-      mockImplementation: (fn: () => unknown) => void;
+      mockImplementation: (fn: new () => unknown) => void;
     };
-    PackageManagerMock.mockImplementation(() => mockPackageManager);
+    PackageManagerMock.mockImplementation(function () {
+      return mockPackageManager;
+    } as unknown as new () => unknown);
 
     tester = new MigrationTester(containerManager);
     vi.clearAllMocks();
@@ -92,10 +100,9 @@ describe('MigrationTester', () => {
     const mockRunner = {
       run: vi.fn().mockResolvedValue(undefined),
     };
-    const SequelizeRunnerMock = SequelizeRunner as unknown as {
-      mockImplementation: (fn: () => unknown) => void;
-    };
-    SequelizeRunnerMock.mockImplementation(() => mockRunner);
+    SequelizeRunnerMock.mockImplementation(function () {
+      return mockRunner;
+    } as unknown as new () => unknown);
 
     // Mock console.log/table to avoid clutter
     vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -137,7 +144,9 @@ describe('MigrationTester', () => {
     const mockRunner = {
       run: vi.fn().mockResolvedValue(undefined),
     };
-    SequelizeRunnerMock.mockImplementation(() => mockRunner);
+    SequelizeRunnerMock.mockImplementation(function () {
+      return mockRunner;
+    } as unknown as new () => unknown);
 
     vi.mocked(fs.existsSync).mockImplementation((path: fs.PathLike) => {
       const pathStr = String(path);
@@ -180,7 +189,9 @@ describe('MigrationTester', () => {
     const mockRunner = {
       run: vi.fn().mockResolvedValue(undefined),
     };
-    SequelizeRunnerMock.mockImplementation(() => mockRunner);
+    SequelizeRunnerMock.mockImplementation(function () {
+      return mockRunner;
+    } as unknown as new () => unknown);
 
     vi.mocked(fs.existsSync).mockImplementation((path: fs.PathLike) => {
       const pathStr = String(path);
@@ -217,7 +228,9 @@ describe('MigrationTester', () => {
     const mockRunner = {
       run: vi.fn().mockResolvedValue(undefined),
     };
-    SequelizeRunnerMock.mockImplementation(() => mockRunner);
+    SequelizeRunnerMock.mockImplementation(function () {
+      return mockRunner;
+    } as unknown as new () => unknown);
 
     vi.mocked(fs.existsSync).mockReturnValue(false);
     vi.mocked(fs.mkdirSync).mockReturnValue(undefined);
@@ -271,7 +284,9 @@ describe('MigrationTester', () => {
     const mockRunner = {
       run: vi.fn().mockResolvedValue(undefined),
     };
-    SequelizeRunnerMock.mockImplementation(() => mockRunner);
+    SequelizeRunnerMock.mockImplementation(function () {
+      return mockRunner;
+    } as unknown as new () => unknown);
 
     vi.mocked(fs.existsSync).mockReturnValue(false);
     vi.mocked(fs.mkdirSync).mockReturnValue(undefined);
@@ -320,7 +335,9 @@ describe('MigrationTester', () => {
     const mockRunner = {
       run: vi.fn().mockResolvedValue(undefined),
     };
-    SequelizeRunnerMock.mockImplementation(() => mockRunner);
+    SequelizeRunnerMock.mockImplementation(function () {
+      return mockRunner;
+    } as unknown as new () => unknown);
 
     const tableSpy = vi.spyOn(console, 'table').mockImplementation(() => {});
     vi.spyOn(console, 'log').mockImplementation(() => {});
