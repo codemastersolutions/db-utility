@@ -1,7 +1,9 @@
 import { exec } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { promisify } from 'node:util';
 
 const execAsync = promisify(exec);
+const localRequire = createRequire(__filename);
 
 export type InstallScope = 'global' | 'dependencies' | 'devDependencies';
 
@@ -37,7 +39,7 @@ export class PackageManager {
       try {
         // Try to resolve from current working directory
         const cwd = process.cwd();
-        require.resolve(packageName, { paths: [cwd] });
+        localRequire.resolve(packageName, { paths: [cwd] });
         return true;
       } catch {
         return false;
@@ -69,9 +71,9 @@ export class PackageManager {
       try {
         // Try to require package.json from the package
         const cwd = process.cwd();
-        const packagePath = require.resolve(`${packageName}/package.json`, { paths: [cwd] });
-        const pkg = require(packagePath);
-        return pkg.version;
+        const packagePath = localRequire.resolve(`${packageName}/package.json`, { paths: [cwd] });
+        const pkg = localRequire(packagePath) as { version?: string };
+        return pkg.version ?? null;
       } catch {
         // Fallback to npm list
         try {

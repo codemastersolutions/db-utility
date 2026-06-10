@@ -59,7 +59,7 @@ describe('ConfigLoader', () => {
     process.env.DBUTILITY_DB_TYPE = 'postgres';
     process.env.DBUTILITY_DB_HOST = 'env-host';
     process.env.DBUTILITY_DB_USER = 'env-user';
-    process.env.DBUTILITY_DB_PASSWORD = 'env-password';
+    process.env.DBUTILITY_DB_PASSWORD = 'env-token';
 
     // 2. File (Média prioridade)
     const fileConfig = {
@@ -89,8 +89,8 @@ describe('ConfigLoader', () => {
       type: 'postgres', // Do Env (único lugar)
       host: 'file-host', // File ganha do Env
       username: 'override-user', // Override ganha de todos
-      password: 'env-password', // Env (único lugar)
     });
+    expect(config.password).toBe(process.env.DBUTILITY_DB_PASSWORD);
   });
 
   it('deve carregar connectTimeoutMs do env', async () => {

@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import { existsSync, readFileSync, mkdirSync, chmodSync, unlinkSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import { ContainerManager } from './ContainerManager';
 import { MigrationRunner } from './runners/MigrationRunner';
 import { SequelizeRunner } from './runners/SequelizeRunner';
@@ -331,7 +332,7 @@ export class MigrationTester {
     backup?: boolean,
   ): Promise<TestResult> {
     const startTime = Date.now();
-    const password = 'StrongPassword123!';
+    const password = randomBytes(18).toString('base64url');
     const port = Math.floor(Math.random() * (60000 - 10000) + 10000); // Random port
     const image = this.getImageName(engine.type, engine.version);
     const dbName = engine.databaseName || 'testdb';

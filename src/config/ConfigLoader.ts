@@ -1,10 +1,13 @@
 import dotenv from 'dotenv';
 import { existsSync, readFileSync } from 'node:fs';
 import { extname, resolve } from 'node:path';
+import { createRequire } from 'node:module';
 import { DatabaseConfig, DatabaseType } from '../types/database';
 import { DbUtilityError } from '../errors/DbUtilityError';
 
 dotenv.config();
+
+const localRequire = createRequire(__filename);
 
 export class ConfigLoader {
   private static readonly MAX_CONNECT_TIMEOUT_MS = 10 * 60 * 1000;
@@ -14,54 +17,11 @@ export class ConfigLoader {
     overrides?: Partial<DatabaseConfig>,
     connectionName?: string,
   ): Promise<DatabaseConfig> {
-    // 1. Carregar do ENV (base)
     const envConfig = this.loadFromEnvRaw();
-
-    // 2. Carregar do Arquivo
-    let fileConfig: Partial<DatabaseConfig> = {};
-
-    // Lista de arquivos a procurar, priorizando o novo padrão
-    const defaultFiles = ['dbutility.config.json', 'db-utility.config.json', '.db-utilityrc'];
-
-    let path = configPath;
-    if (!path) {
-      for (const file of defaultFiles) {
-        const p = resolve(process.cwd(), file);
-        if (existsSync(p)) {
-          path = p;
-          break;
-        }
-      }
-    }
-
-    if (path) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const rawFile: any = await this.loadFromFileRaw(path);
-
-      // Verifica se tem a propriedade 'connection' (novo formato) ou se é o formato antigo
-      if (rawFile && typeof rawFile === 'object') {
-        if (connectionName) {
-          if (
-            rawFile.connections &&
-            typeof rawFile.connections === 'object' &&
-            rawFile.connections[connectionName]
-          ) {
-            fileConfig = rawFile.connections[connectionName];
-          } else {
-            throw new DbUtilityError('CONNECTION_CONFIG_NOT_FOUND', connectionName);
-          }
-        } else if ('connection' in rawFile && typeof rawFile.connection === 'object') {
-          fileConfig = rawFile.connection;
-        } else if ('type' in rawFile || 'connectionString' in rawFile) {
-          // Assume formato antigo (flat) se tiver propriedades chave
-          fileConfig = rawFile as Partial<DatabaseConfig>;
-        }
-      }
-    }
+    const fileConfig = await this.loadFromFileConfig(configPath, connectionName);
 
     // 3. Mesclar: Overrides > File > Env
     const merge = <K extends keyof DatabaseConfig>(key: K): DatabaseConfig[K] => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const val = overrides?.[key] ?? fileConfig[key] ?? envConfig[key];
       return val as DatabaseConfig[K];
     };
@@ -90,6 +50,93 @@ export class ConfigLoader {
     return finalConfig;
   }
 
+  private static async loadFromFileConfig(
+    configPath?: string,
+    connectionName?: string,
+  ): Promise<Partial<DatabaseConfig>> {
+    const resolvedPath = this.resolveConfigPath(configPath);
+    if (!resolvedPath) return {};
+
+    const rawFile = await this.loadFromFileRaw(resolvedPath);
+    return this.selectDatabaseConfigFromFile(rawFile, connectionName);
+  }
+
+  private static resolveConfigPath(configPath?: string): string | undefined {
+    if (configPath) return configPath;
+
+    const defaultFiles = ['dbutility.config.json', 'db-utility.config.json', '.db-utilityrc'];
+    for (const file of defaultFiles) {
+      const candidate = resolve(process.cwd(), file);
+      if (existsSync(candidate)) return candidate;
+    }
+
+    return undefined;
+  }
+
+  private static isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
+  }
+
+  private static parseOptionalInt(value: unknown): number | undefined {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string') {
+      const parsed = Number.parseInt(value, 10);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+    return undefined;
+  }
+
+  private static toDatabaseConfigPartial(source: Record<string, unknown>): Partial<DatabaseConfig> {
+    return {
+      type: typeof source.type === 'string' ? (source.type as DatabaseType) : undefined,
+      host: typeof source.host === 'string' ? source.host : undefined,
+      port: this.parseOptionalInt(source.port),
+      username: typeof source.username === 'string' ? source.username : undefined,
+      password: typeof source.password === 'string' ? source.password : undefined,
+      database: typeof source.database === 'string' ? source.database : undefined,
+      ssl: typeof source.ssl === 'boolean' ? source.ssl : undefined,
+      connectionString:
+        typeof source.connectionString === 'string' ? source.connectionString : undefined,
+      connectTimeoutMs: this.parseOptionalInt(source.connectTimeoutMs),
+    };
+  }
+
+  private static selectDatabaseConfigFromFile(
+    rawFile: unknown,
+    connectionName?: string,
+  ): Partial<DatabaseConfig> {
+    if (!this.isRecord(rawFile)) return {};
+
+    if (connectionName) return this.selectNamedConnection(rawFile, connectionName);
+    return this.selectDefaultConnection(rawFile);
+  }
+
+  private static selectNamedConnection(
+    rawFile: Record<string, unknown>,
+    connectionName: string,
+  ): Partial<DatabaseConfig> {
+    const connections = rawFile.connections;
+    if (!this.isRecord(connections)) {
+      throw new DbUtilityError('CONNECTION_CONFIG_NOT_FOUND', connectionName);
+    }
+    const selected = connections[connectionName];
+    if (!this.isRecord(selected)) {
+      throw new DbUtilityError('CONNECTION_CONFIG_NOT_FOUND', connectionName);
+    }
+    return this.toDatabaseConfigPartial(selected);
+  }
+
+  private static selectDefaultConnection(
+    rawFile: Record<string, unknown>,
+  ): Partial<DatabaseConfig> {
+    const connection = rawFile.connection;
+    if (this.isRecord(connection)) return this.toDatabaseConfigPartial(connection);
+    if (rawFile.type !== undefined || rawFile.connectionString !== undefined) {
+      return this.toDatabaseConfigPartial(rawFile);
+    }
+    return {};
+  }
+
   private static async loadFromFileRaw(path: string): Promise<unknown> {
     const absolutePath = resolve(process.cwd(), path);
     if (!existsSync(absolutePath)) {
@@ -101,8 +148,7 @@ export class ConfigLoader {
       const content = readFileSync(absolutePath, 'utf-8');
       return JSON.parse(content);
     } else if (ext === '.js') {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const config = require(absolutePath);
+      const config = localRequire(absolutePath);
       return config.default || config;
     }
 
@@ -143,20 +189,33 @@ export class ConfigLoader {
     };
   }
 
+  private static safeValueForError(value: unknown): string {
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'boolean' || value === null)
+      return String(value);
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return Object.prototype.toString.call(value);
+    }
+  }
+
   private static parseConnectTimeoutMs(value: unknown): number {
-    const parsed =
-      typeof value === 'number'
-        ? value
-        : typeof value === 'string'
-          ? Number.parseInt(value, 10)
-          : Number.NaN;
+    let parsed: number;
+    if (typeof value === 'number') {
+      parsed = value;
+    } else if (typeof value === 'string') {
+      parsed = Number.parseInt(value, 10);
+    } else {
+      parsed = Number.NaN;
+    }
 
     if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
-      throw new DbUtilityError('CONFIG_DB_CONNECT_TIMEOUT_INVALID', String(value));
+      throw new DbUtilityError('CONFIG_DB_CONNECT_TIMEOUT_INVALID', this.safeValueForError(value));
     }
 
     if (parsed < 1 || parsed > this.MAX_CONNECT_TIMEOUT_MS) {
-      throw new DbUtilityError('CONFIG_DB_CONNECT_TIMEOUT_INVALID', String(value));
+      throw new DbUtilityError('CONFIG_DB_CONNECT_TIMEOUT_INVALID', this.safeValueForError(value));
     }
 
     return parsed;

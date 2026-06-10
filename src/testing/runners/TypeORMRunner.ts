@@ -1,7 +1,10 @@
-import { join } from 'path';
-import { readdirSync } from 'fs';
+import { join } from 'node:path';
+import { readdirSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { DatabaseConfig } from '../../types/database';
 import { MigrationRunner } from './MigrationRunner';
+
+const localRequire = createRequire(__filename);
 
 export class TypeORMRunner implements MigrationRunner {
   private ormPath?: string;
@@ -17,29 +20,29 @@ export class TypeORMRunner implements MigrationRunner {
     try {
       let typeormPkg;
       if (this.ormPath) {
-        typeormPkg = require(this.ormPath);
+        typeormPkg = localRequire(this.ormPath);
       } else {
         // Try to load from user's project
         try {
-          typeormPkg = require(join(cwd, 'node_modules', 'typeorm'));
+          typeormPkg = localRequire(join(cwd, 'node_modules', 'typeorm'));
         } catch {
-          typeormPkg = require('typeorm');
+          typeormPkg = localRequire('typeorm');
         }
       }
       DataSourceClass = typeormPkg.DataSource;
-    } catch (e) {
+    } catch {
       throw new Error('TypeORM not found. Please install typeorm in your project to run tests.');
     }
 
     // Try to register ts-node for handling .ts files
     try {
-      require(join(cwd, 'node_modules', 'ts-node')).register({
+      localRequire(join(cwd, 'node_modules', 'ts-node')).register({
         transpileOnly: true,
         compilerOptions: {
           module: 'commonjs',
         },
       });
-    } catch (e) {
+    } catch {
       console.warn(
         'ts-node not found. If your migrations are in TypeScript, they might fail to load.',
       );
@@ -79,7 +82,7 @@ export class TypeORMRunner implements MigrationRunner {
         const migrationPath = join(migrationsDir, file);
 
         // Dynamic import/require
-        const migrationModule = require(migrationPath);
+        const migrationModule = localRequire(migrationPath);
 
         // TypeORM migrations export a class. We need to find it.
         // Usually keys are the class name.

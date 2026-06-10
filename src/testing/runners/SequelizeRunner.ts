@@ -1,7 +1,10 @@
-import { join } from 'path';
-import { readdirSync } from 'fs';
+import { join } from 'node:path';
+import { readdirSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { DatabaseConfig } from '../../types/database';
 import { MigrationRunner } from './MigrationRunner';
+
+const localRequire = createRequire(__filename);
 
 export class SequelizeRunner implements MigrationRunner {
   private ormPath?: string;
@@ -18,18 +21,18 @@ export class SequelizeRunner implements MigrationRunner {
       let sequelizePkg;
       if (this.ormPath) {
         // If specific path provided (e.g. global or specific version)
-        sequelizePkg = require(this.ormPath);
+        sequelizePkg = localRequire(this.ormPath);
       } else {
         // Try to load from user's project
         try {
-          sequelizePkg = require(join(cwd, 'node_modules', 'sequelize'));
+          sequelizePkg = localRequire(join(cwd, 'node_modules', 'sequelize'));
         } catch {
           // Try standard require
-          sequelizePkg = require('sequelize');
+          sequelizePkg = localRequire('sequelize');
         }
       }
       SequelizeClass = sequelizePkg.Sequelize;
-    } catch (e) {
+    } catch {
       throw new Error(
         'Sequelize not found. Please install sequelize in your project to run tests.',
       );
@@ -68,7 +71,7 @@ export class SequelizeRunner implements MigrationRunner {
       for (const file of files) {
         console.log(`Running migration: ${file}`);
         const migrationPath = join(migrationsDir, file);
-        const migration = require(migrationPath);
+        const migration = localRequire(migrationPath);
 
         await migration.up(queryInterface, SequelizeClass);
       }
