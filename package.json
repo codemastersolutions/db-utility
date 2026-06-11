@@ -1,6 +1,6 @@
 {
   "name": "@codemastersolutions/db-utility",
-  "version": "0.0.12",
+  "version": "0.0.13",
   "description": "Database utility for migrations, seeders, factories, introspection and more...",
   "files": [
     "dist",
@@ -58,10 +58,10 @@
   "dependencies": {
     "commander": "^15.0.0",
     "dotenv": "^17.4.2",
+    "inquirer": "^14.0.2",
     "mssql": "^12.2.0",
     "mysql2": "^3.16.0",
-    "pg": "^8.16.3",
-    "inquirer": "^14.0.2"
+    "pg": "^8.16.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
