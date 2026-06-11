@@ -21,7 +21,10 @@ export class MssqlConnector implements IDatabaseConnector {
       database: this.config.database,
       ...(this.config.connectTimeoutMs === undefined
         ? {}
-        : { connectionTimeout: this.config.connectTimeoutMs }),
+        : {
+            connectionTimeout: this.config.connectTimeoutMs,
+            requestTimeout: this.config.connectTimeoutMs,
+          }),
       options: {
         encrypt: this.config.ssl !== false, // Azure precisa de encrypt: true
         trustServerCertificate: !this.config.ssl, // Dev local geralmente precisa de true

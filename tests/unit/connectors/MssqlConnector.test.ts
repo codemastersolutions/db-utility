@@ -41,6 +41,7 @@ describe('MssqlConnector', () => {
       expect.objectContaining({
         server: 'localhost',
         connectionTimeout: 15000,
+        requestTimeout: 15000,
       }),
     );
   });
@@ -58,6 +59,7 @@ describe('MssqlConnector', () => {
     expect(ConnectionPool).toHaveBeenCalledWith(
       expect.objectContaining({
         connectionTimeout: 15000,
+        requestTimeout: 15000,
         connectionString: 'mssql://user:pass@localhost:1433/test_db',
       }),
     );
@@ -75,4 +77,3 @@ describe('MssqlConnector', () => {
     expect(ConnectionPool).toHaveBeenCalledWith('mssql://user:pass@localhost:1433/test_db');
   });
 });
-
