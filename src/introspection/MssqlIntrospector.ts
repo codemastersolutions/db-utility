@@ -36,6 +36,7 @@ interface MssqlIndexRow {
   is_primary: boolean;
   column_name: string;
   key_ordinal: number;
+  is_included_column: boolean;
 }
 
 interface MssqlFkRow {
@@ -107,6 +108,7 @@ export class MssqlIntrospector extends BaseIntrospector {
         indexMap.set(key, {
           name: i.index_name,
           columns: [],
+          includedColumns: [],
           isUnique: i.is_unique,
           isPrimary: i.is_primary,
         });
@@ -114,6 +116,11 @@ export class MssqlIntrospector extends BaseIntrospector {
 
       const entry = indexMap.get(key);
       if (!entry) return;
+      if (i.is_included_column || i.key_ordinal === 0) {
+        entry.includedColumns?.push(i.column_name);
+        return;
+      }
+
       entry.columns.push(i.column_name);
     });
 
@@ -210,7 +217,8 @@ export class MssqlIntrospector extends BaseIntrospector {
         ind.is_unique,
         ind.is_primary_key AS is_primary,
         col.name AS column_name,
-        ic.key_ordinal
+        ic.key_ordinal,
+        ic.is_included_column
       FROM sys.indexes ind
       INNER JOIN sys.index_columns ic
         ON ind.object_id = ic.object_id

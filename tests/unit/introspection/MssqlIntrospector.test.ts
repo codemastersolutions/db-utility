@@ -72,4 +72,120 @@ describe('MssqlIntrospector', () => {
     expect(columns.find((column) => column.name === 'createdAt')?.defaultValue).toBe('getdate()');
     expect(columns.find((column) => column.name === 'legacyDefault')?.defaultValue).toBe('0');
   });
+
+  it('should keep included columns out of the index key list', async () => {
+    const connector: IDatabaseConnector = {
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      isConnected: vi.fn(),
+      getVersion: vi.fn(),
+      query: vi
+        .fn()
+        .mockResolvedValueOnce([{ table_name: 'LPUBLIC' }])
+        .mockResolvedValueOnce([
+          {
+            table_name: 'LPUBLIC',
+            column_name: 'ID',
+            data_type: 'int',
+            is_nullable: 'NO',
+            column_default: null,
+            character_maximum_length: null,
+            numeric_precision: 10,
+            numeric_scale: 0,
+            is_identity: 0,
+          },
+          {
+            table_name: 'LPUBLIC',
+            column_name: 'COL_A',
+            data_type: 'varchar',
+            is_nullable: 'YES',
+            column_default: null,
+            character_maximum_length: 50,
+            numeric_precision: null,
+            numeric_scale: null,
+            is_identity: 0,
+          },
+          {
+            table_name: 'LPUBLIC',
+            column_name: 'COL_B',
+            data_type: 'varchar',
+            is_nullable: 'YES',
+            column_default: null,
+            character_maximum_length: 50,
+            numeric_precision: null,
+            numeric_scale: null,
+            is_identity: 0,
+          },
+          {
+            table_name: 'LPUBLIC',
+            column_name: 'COL_C',
+            data_type: 'varchar',
+            is_nullable: 'YES',
+            column_default: null,
+            character_maximum_length: 50,
+            numeric_precision: null,
+            numeric_scale: null,
+            is_identity: 0,
+          },
+          {
+            table_name: 'LPUBLIC',
+            column_name: 'COL_D',
+            data_type: 'varchar',
+            is_nullable: 'YES',
+            column_default: null,
+            character_maximum_length: 50,
+            numeric_precision: null,
+            numeric_scale: null,
+            is_identity: 0,
+          },
+        ])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          {
+            table_name: 'LPUBLIC',
+            index_name: 'LXLPUBLIC_01',
+            is_unique: false,
+            is_primary: false,
+            column_name: 'COL_A',
+            key_ordinal: 1,
+            is_included_column: false,
+          },
+          {
+            table_name: 'LPUBLIC',
+            index_name: 'LXLPUBLIC_01',
+            is_unique: false,
+            is_primary: false,
+            column_name: 'COL_B',
+            key_ordinal: 2,
+            is_included_column: false,
+          },
+          {
+            table_name: 'LPUBLIC',
+            index_name: 'LXLPUBLIC_01',
+            is_unique: false,
+            is_primary: false,
+            column_name: 'COL_C',
+            key_ordinal: 0,
+            is_included_column: true,
+          },
+          {
+            table_name: 'LPUBLIC',
+            index_name: 'LXLPUBLIC_01',
+            is_unique: false,
+            is_primary: false,
+            column_name: 'COL_D',
+            key_ordinal: 0,
+            is_included_column: true,
+          },
+        ])
+        .mockResolvedValueOnce([]),
+    };
+
+    const introspector = new MssqlIntrospector(connector);
+    const schema = await introspector.introspectSchema();
+    const index = schema.tables[0].indexes[0];
+
+    expect(index.columns).toEqual(['COL_A', 'COL_B']);
+    expect(index.includedColumns).toEqual(['COL_C', 'COL_D']);
+  });
 });

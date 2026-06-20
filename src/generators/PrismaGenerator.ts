@@ -1,5 +1,6 @@
 import { ColumnMetadata, DatabaseSchema } from '../types/introspection';
 import { classifyDatabaseDefault, inferDefaultLogicalType } from '../utils/DefaultValueUtils';
+import { getGeneratableIndexes } from '../utils/IndexUtils';
 import { GeneratedFile, SchemaGenerator } from './GeneratorTypes';
 
 export class PrismaGenerator implements SchemaGenerator {
@@ -18,6 +19,7 @@ export class PrismaGenerator implements SchemaGenerator {
     lines.push('');
 
     for (const table of schema.tables) {
+      const indexes = getGeneratableIndexes(table.indexes);
       lines.push(`model ${this.formatModelName(table.name)} {`);
 
       for (const col of table.columns) {
@@ -31,7 +33,7 @@ export class PrismaGenerator implements SchemaGenerator {
       // We will focus on fields and basic constraints first.
 
       // Add indexes and constraints with names
-      for (const idx of table.indexes) {
+      for (const idx of indexes) {
         const cols = idx.columns.join(', ');
         if (idx.isPrimary) {
           lines.push(`  @@id([${cols}], map: "${idx.name}")`);

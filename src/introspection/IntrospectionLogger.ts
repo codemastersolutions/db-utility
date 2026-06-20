@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { AppConfig } from '../config/AppConfig';
 import { DatabaseConfig } from '../types/database';
 import { DatabaseSchema } from '../types/introspection';
+import { analyzeSchemaLimits } from '../utils/IndexUtils';
 
 export class IntrospectionLogger {
   static logSchema(
@@ -21,6 +22,7 @@ export class IntrospectionLogger {
 
     const schemaPath = join(runDir, 'schema.json');
     const metadataPath = join(runDir, 'metadata.json');
+    const limits = analyzeSchemaLimits(schema);
 
     const metadata = {
       type: dbConfig.type,
@@ -29,6 +31,8 @@ export class IntrospectionLogger {
       database: dbConfig.database,
       executedAt: new Date().toISOString(),
       tablesCount: schema.tables.length,
+      tablesOver32Columns: limits.tablesOverColumnLimit,
+      indexesOver32KeyColumns: limits.indexesOverKeyColumnLimit,
     };
 
     writeFileSync(schemaPath, JSON.stringify(schema, null, 2), 'utf-8');

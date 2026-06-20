@@ -1,6 +1,7 @@
 import { ColumnMetadata, DatabaseSchema, TableData } from '../types/introspection';
 import { filterAutoIncrementColumns } from '../utils/DataUtils';
 import { classifyDatabaseDefault, inferDefaultLogicalType } from '../utils/DefaultValueUtils';
+import { getGeneratableIndexes } from '../utils/IndexUtils';
 import { topologicalSort } from '../utils/topologicalSort';
 import {
   DataMigrationGenerator,
@@ -18,6 +19,7 @@ export class SequelizeGenerator
     // Generate Models
     for (const table of schema.tables) {
       const className = this.formatModelName(table.name);
+      const indexes = getGeneratableIndexes(table.indexes);
       const content = `import { Model, DataTypes, Sequelize } from 'sequelize';
 
 export class ${className} extends Model {}
@@ -32,7 +34,7 @@ ${table.columns.map((c) => this.generateColumnDefinition(c)).join(',\n')}
       tableName: '${table.name}',
       timestamps: false,
       indexes: [
-${table.indexes
+${indexes
   .filter((idx) => !idx.isPrimary)
   .map(
     (idx) =>
@@ -74,6 +76,7 @@ ${table.indexes
 
       const tableData = data?.find((d) => d.tableName.toLowerCase() === table.name.toLowerCase());
       const hasAutoIncrement = table.columns.some((c) => c.isAutoIncrement);
+      const indexes = getGeneratableIndexes(table.indexes);
 
       const createTablePart = `await queryInterface.createTable('${table.name}', {
 ${table.columns.map((c) => this.generateMigrationColumn(c, !hasAutoIncrement, false)).join(',\n')}
@@ -81,7 +84,7 @@ ${table.columns.map((c) => this.generateMigrationColumn(c, !hasAutoIncrement, fa
 
       const pkConstraintsPart = hasAutoIncrement
         ? ''
-        : table.indexes
+        : indexes
             .filter((idx) => idx.isPrimary)
             .map(
               (idx) =>
@@ -93,7 +96,7 @@ ${table.columns.map((c) => this.generateMigrationColumn(c, !hasAutoIncrement, fa
             )
             .join('\n    ');
 
-      const indexesPart = table.indexes
+      const indexesPart = indexes
         .filter((idx) => !idx.isPrimary)
         .map(
           (idx) =>

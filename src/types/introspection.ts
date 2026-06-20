@@ -15,6 +15,7 @@ export interface ColumnMetadata {
 export interface IndexMetadata {
   name: string;
   columns: string[];
+  includedColumns?: string[];
   isUnique: boolean;
   isPrimary: boolean;
 }

@@ -3,6 +3,7 @@ import {
   DatabaseSchema,
 } from '../types/introspection';
 import { classifyDatabaseDefault, inferDefaultLogicalType } from '../utils/DefaultValueUtils';
+import { getGeneratableIndexes } from '../utils/IndexUtils';
 import { GeneratedFile, SchemaGenerator } from './GeneratorTypes';
 
 export class MongooseGenerator implements SchemaGenerator {
@@ -11,6 +12,7 @@ export class MongooseGenerator implements SchemaGenerator {
 
     for (const table of schema.tables) {
       const className = this.formatModelName(table.name);
+      const indexes = getGeneratableIndexes(table.indexes);
       const content = `import { Schema, model, Document } from 'mongoose';
 
 export interface I${className} extends Document {
@@ -24,7 +26,7 @@ ${table.columns.map((c) => this.generateFieldDefinition(c)).join(',\n')}
   collection: '${table.name}'
 });
 
-${table.indexes
+${indexes
   .filter((idx) => !idx.isPrimary) // Mongoose handles _id, but if we have other PKs from SQL, we index them as unique.
   .map(
     (idx) =>

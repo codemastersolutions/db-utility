@@ -1,6 +1,7 @@
 import { ColumnMetadata, DatabaseSchema, TableData } from '../types/introspection';
 import { filterAutoIncrementColumns } from '../utils/DataUtils';
 import { classifyDatabaseDefault, inferDefaultLogicalType } from '../utils/DefaultValueUtils';
+import { getGeneratableIndexes } from '../utils/IndexUtils';
 import { topologicalSort } from '../utils/topologicalSort';
 import {
   DataMigrationGenerator,
@@ -17,10 +18,11 @@ export class TypeORMGenerator
 
     for (const table of schema.tables) {
       const className = this.formatModelName(table.name);
+      const indexes = getGeneratableIndexes(table.indexes);
       const content = `import { Entity, PrimaryColumn, Column, Index } from 'typeorm';
 
 @Entity('${table.name}')
-${table.indexes
+${indexes
   .filter((idx) => !idx.isPrimary) // Primary keys are handled by @PrimaryColumn
   .map(
     (idx) =>
@@ -52,9 +54,10 @@ ${table.columns.map((c) => this.generateColumnDefinition(c)).join('\n')}
       counter++;
       const migrationName = `Create${this.formatModelName(table.name)}${timestamp + counter}`;
       const fileName = `${timestamp + counter}-${migrationName}.ts`;
+      const indexes = getGeneratableIndexes(table.indexes);
 
       // Check if we have a named primary key
-      const pkIndex = table.indexes.find((idx) => idx.isPrimary);
+      const pkIndex = indexes.find((idx) => idx.isPrimary);
       const pkName = pkIndex ? pkIndex.name : undefined;
 
       const content = `import { MigrationInterface, QueryRunner, Table, TableIndex, TableForeignKey } from 'typeorm';
@@ -83,7 +86,7 @@ ${table.foreignKeys
       ],
     }), true);
 
-${table.indexes
+${indexes
   .filter((idx) => !idx.isPrimary)
   .map(
     (idx) =>
