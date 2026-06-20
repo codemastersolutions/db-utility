@@ -48,6 +48,18 @@ export class TypeORMRunner implements MigrationRunner {
       );
     }
 
+    const extra =
+      config.type === 'mssql'
+        ? {
+            options: {
+              encrypt: !!config.ssl,
+              trustServerCertificate: !config.ssl,
+            },
+          }
+        : config.ssl
+          ? { ssl: { rejectUnauthorized: false } }
+          : undefined;
+
     const dataSource = new DataSourceClass({
       type: config.type,
       host: config.host,
@@ -60,7 +72,7 @@ export class TypeORMRunner implements MigrationRunner {
       entities: [],
       migrations: [],
       ssl: config.ssl ? { rejectUnauthorized: false } : false,
-      extra: config.ssl ? { ssl: { rejectUnauthorized: false } } : undefined,
+      extra,
     });
 
     try {

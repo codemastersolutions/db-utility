@@ -1,4 +1,4 @@
-import { ConnectionPool } from 'mssql';
+import { ConnectionPool, MAX, NVarChar, VarBinary } from 'mssql';
 import type { config as MssqlConfig } from 'mssql';
 import { DbUtilityError } from '../../errors/DbUtilityError';
 import { DatabaseConfig, IDatabaseConnector, QueryOptions } from '../../types/database';
@@ -67,6 +67,16 @@ export class MssqlConnector implements IDatabaseConnector {
 
     if (params) {
       params.forEach((param, index) => {
+        if (typeof param === 'string' && param.length > 4000) {
+          request.input(`param${index}`, NVarChar(MAX), param);
+          return;
+        }
+
+        if (param instanceof Uint8Array && param.byteLength > 8000) {
+          request.input(`param${index}`, VarBinary(MAX), param as never);
+          return;
+        }
+
         request.input(`param${index}`, param as never);
       });
     }

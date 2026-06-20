@@ -14,8 +14,8 @@ DbUtility is a powerful utility for manipulating Microsoft SQL Server, MySQL, an
 - **Multi-Database Support**: Connect to Microsoft SQL Server, MySQL, and PostgreSQL using official drivers (`mssql`, `mysql2`, `pg`).
 - **Flexible Configuration**: Connection details via CLI, `.env`, JSON configuration files.
 - **Introspection**: Analyze your database to list tables, views, stored procedures, functions, and triggers.
-- **Model Export**: Export database tables to Sequelize, TypeORM, and Prisma models (Coming soon).
-- **Migration Generation**: Create migrations from existing database tables for Sequelize, TypeORM, and Prisma (Coming soon).
+- **Model Export**: Export database tables to Sequelize, TypeORM, Prisma, and Mongoose models.
+- **Migration Generation**: Create schema and data migrations from existing database tables for Sequelize and TypeORM.
 
 ## Installation
 
@@ -24,6 +24,41 @@ npm install @codemastersolutions/db-utility
 # or globally
 npm install -g @codemastersolutions/db-utility
 ```
+
+## MSSQL Integration Tests
+
+DbUtility includes opt-in integration tests for Microsoft SQL Server that validate the real migration runners against a Docker container.
+
+These tests currently cover:
+
+- Sequelize migrations with long MSSQL string columns
+- TypeORM migrations with long MSSQL string columns
+- Real inserts of values longer than 4000 characters without parameter size errors
+
+Prerequisites:
+
+- Docker installed and available in your `PATH`
+- Development dependencies installed with `pnpm install`
+
+Available scripts:
+
+```bash
+# Run both MSSQL integration suites
+pnpm run test:integration:mssql
+
+# Run only Sequelize + MSSQL integration
+pnpm run test:integration:mssql:sequelize
+
+# Run only TypeORM + MSSQL integration
+pnpm run test:integration:mssql:typeorm
+```
+
+Notes:
+
+- These scripts automatically enable `DBUTILITY_RUN_DOCKER_INTEGRATION=1`.
+- They use `cross-env`, so the same commands work on macOS, Linux, and Windows.
+- They are intentionally separate from `pnpm test` to keep the default test suite fast.
+- The tests start real SQL Server containers and may take longer than unit tests.
 
 ## Internet Usage
 
@@ -70,7 +105,7 @@ The configuration file allows you to define CLI language, output directories, na
     "outputDir": "db-utility-migrations",
     "fileNamePattern": "timestamp-prefix",
     "data": true,
-    "dataTables": ["users", { "table": "bsistemas", "where": "id > 15" }],
+    "dataTables": ["users", { "table": "logs", "where": "level = 'ERROR'" }],
     "backup": true
   },
   "connection": {

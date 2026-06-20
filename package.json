@@ -22,6 +22,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:integration:mssql": "cross-env DBUTILITY_RUN_DOCKER_INTEGRATION=1 vitest run tests/integration/testing/SequelizeMssqlLongString.test.ts tests/integration/testing/TypeormMssqlLongString.test.ts",
+    "test:integration:mssql:sequelize": "cross-env DBUTILITY_RUN_DOCKER_INTEGRATION=1 vitest run tests/integration/testing/SequelizeMssqlLongString.test.ts",
+    "test:integration:mssql:typeorm": "cross-env DBUTILITY_RUN_DOCKER_INTEGRATION=1 vitest run tests/integration/testing/TypeormMssqlLongString.test.ts",
     "lint": "eslint 'src/**/*.ts'",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
     "prepublishOnly": "pnpm run build"
@@ -71,9 +74,14 @@
     "@typescript-eslint/eslint-plugin": "^8.53.0",
     "@typescript-eslint/parser": "^8.53.0",
     "@vitest/coverage-v8": "^4.0.17",
+    "cross-env": "^10.1.0",
     "eslint": "^9.39.2",
     "globals": "^17.0.0",
     "prettier": "^3.7.4",
+    "sequelize": "^6.37.8",
+    "tedious": "^19.2.1",
+    "ts-node": "^10.9.2",
+    "typeorm": "^1.0.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.17"
   }

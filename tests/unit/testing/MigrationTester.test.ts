@@ -3,6 +3,7 @@ import { MigrationTester } from '../../../src/testing/MigrationTester';
 import { ContainerManager } from '../../../src/testing/ContainerManager';
 import { ConnectionFactory } from '../../../src/database/ConnectionFactory';
 import * as fs from 'node:fs';
+import inquirer from 'inquirer';
 import { join } from 'node:path';
 import { SequelizeRunner } from '../../../src/testing/runners/SequelizeRunner';
 import { PackageManager } from '../../../src/utils/PackageManager';
@@ -127,6 +128,41 @@ describe('MigrationTester', () => {
     expect(containerManager.stopContainer).toHaveBeenCalledWith('container123');
   });
 
+  it('should use globally installed ORM and pass its path to the runner', async () => {
+    vi.mocked(containerManager.checkDocker).mockResolvedValue(true);
+    vi.mocked(containerManager.startContainer).mockResolvedValue('container123');
+
+    mockPackageManager.isInstalled.mockImplementation(async (_pkg: string, scope: string) => {
+      if (scope === 'global') return true;
+      return false;
+    });
+
+    const mockConnector = {
+      connect: vi.fn().mockResolvedValue(undefined),
+      disconnect: vi.fn().mockResolvedValue(undefined),
+      query: vi.fn().mockResolvedValue(undefined),
+      isConnected: vi.fn().mockResolvedValue(true),
+      getVersion: vi.fn().mockResolvedValue('14.0'),
+    };
+    vi.mocked(ConnectionFactory.create).mockReturnValue(mockConnector);
+
+    const mockRunner = {
+      run: vi.fn().mockResolvedValue(undefined),
+    };
+    SequelizeRunnerMock.mockImplementation(function () {
+      return mockRunner;
+    } as unknown as new () => unknown);
+
+    vi.mocked(fs.existsSync).mockReturnValue(false);
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'table').mockImplementation(() => {});
+
+    await tester.test('sequelize', 'dir', ['postgres:14']);
+
+    expect(mockPackageManager.getGlobalInstallPath).toHaveBeenCalled();
+    expect(SequelizeRunner).toHaveBeenCalledWith('/global/path/sequelize');
+  });
+
   it('should read engines from database-info.json if not specified', async () => {
     vi.mocked(containerManager.checkDocker).mockResolvedValue(true);
     vi.mocked(containerManager.startContainer).mockResolvedValue('container123');
@@ -169,6 +205,49 @@ describe('MigrationTester', () => {
       expect.any(Number),
       expect.any(Number),
     );
+  });
+
+  it('should stop when no engines are provided and database-info.json is missing', async () => {
+    vi.mocked(containerManager.checkDocker).mockResolvedValue(true);
+    vi.mocked(fs.existsSync).mockReturnValue(false);
+
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await tester.test('sequelize', 'dir');
+
+    expect(consoleSpy).toHaveBeenCalledWith(
+      'No database engines specified and no database-info.json found.',
+    );
+    expect(containerManager.startContainer).not.toHaveBeenCalled();
+  });
+
+  it('should stop when user declines ORM installation', async () => {
+    vi.mocked(containerManager.checkDocker).mockResolvedValue(true);
+    vi.mocked(fs.existsSync).mockReturnValue(false);
+    vi.mocked(inquirer.prompt).mockResolvedValueOnce({ install: false });
+
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await tester.test('sequelize', 'dir', ['postgres:14']);
+
+    expect(consoleSpy).toHaveBeenCalledWith('sequelize is required to run tests.');
+    expect(containerManager.startContainer).not.toHaveBeenCalled();
+  });
+
+  it('should stop when ORM version cannot be resolved', async () => {
+    vi.mocked(containerManager.checkDocker).mockResolvedValue(true);
+    vi.mocked(fs.existsSync).mockReturnValue(false);
+    vi.mocked(inquirer.prompt)
+      .mockResolvedValueOnce({ install: true })
+      .mockResolvedValueOnce({ scope: 'global', versionInput: '6' });
+    mockPackageManager.resolveVersion.mockResolvedValueOnce(null);
+
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await tester.test('sequelize', 'dir', ['postgres:14']);
+
+    expect(consoleSpy).toHaveBeenCalledWith('Versão 6 não encontrada para sequelize.');
+    expect(containerManager.startContainer).not.toHaveBeenCalled();
   });
 
   it('should use bypassSafety for MSSQL database creation', async () => {
@@ -328,12 +407,115 @@ describe('MigrationTester', () => {
     );
   });
 
+  it('should fallback to legacy sqlcmd path when mssql-tools18 is unavailable', async () => {
+    vi.mocked(containerManager.checkDocker).mockResolvedValue(true);
+    vi.mocked(containerManager.startContainer).mockResolvedValue('container123');
+    vi.mocked(containerManager.copyFromContainer).mockResolvedValue(undefined);
+    vi.mocked(containerManager.execInContainer)
+      .mockResolvedValueOnce('')
+      .mockRejectedValueOnce(new Error('not found'))
+      .mockResolvedValueOnce('');
+
+    const mockConnector = {
+      connect: vi.fn().mockResolvedValue(undefined),
+      disconnect: vi.fn().mockResolvedValue(undefined),
+      query: vi.fn().mockResolvedValue(undefined),
+      isConnected: vi.fn().mockResolvedValue(true),
+      getVersion: vi.fn().mockResolvedValue('2019'),
+    };
+    vi.mocked(ConnectionFactory.create).mockReturnValue(mockConnector);
+
+    const mockRunner = {
+      run: vi.fn().mockResolvedValue(undefined),
+    };
+    SequelizeRunnerMock.mockImplementation(function () {
+      return mockRunner;
+    } as unknown as new () => unknown);
+
+    vi.mocked(fs.existsSync).mockReturnValue(false);
+    vi.mocked(fs.mkdirSync).mockReturnValue(undefined);
+
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'table').mockImplementation(() => {});
+
+    await tester.test('sequelize', 'dir', ['mssql:2019'], true);
+
+    expect(containerManager.execInContainer).toHaveBeenNthCalledWith(
+      3,
+      'container123',
+      expect.stringContaining('/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -Q'),
+      expect.objectContaining({ SQLCMDPASSWORD: expect.any(String) }),
+    );
+    expect(containerManager.execInContainer).not.toHaveBeenNthCalledWith(
+      3,
+      'container123',
+      expect.stringContaining(' -C -Q '),
+      expect.any(Object),
+    );
+  });
+
+  it('should warn and continue when removing an existing backup fails', async () => {
+    vi.mocked(containerManager.checkDocker).mockResolvedValue(true);
+    vi.mocked(containerManager.startContainer).mockResolvedValue('container123');
+    vi.mocked(containerManager.execInContainer).mockResolvedValue('');
+    vi.mocked(containerManager.copyFromContainer).mockResolvedValue(undefined);
+
+    const mockConnector = {
+      connect: vi.fn().mockResolvedValue(undefined),
+      disconnect: vi.fn().mockResolvedValue(undefined),
+      query: vi.fn().mockResolvedValue(undefined),
+      isConnected: vi.fn().mockResolvedValue(true),
+      getVersion: vi.fn().mockResolvedValue('14.0'),
+    };
+    vi.mocked(ConnectionFactory.create).mockReturnValue(mockConnector);
+
+    const mockRunner = {
+      run: vi.fn().mockResolvedValue(undefined),
+    };
+    SequelizeRunnerMock.mockImplementation(function () {
+      return mockRunner;
+    } as unknown as new () => unknown);
+
+    vi.mocked(fs.existsSync).mockReturnValue(true);
+    vi.mocked(fs.unlinkSync).mockImplementation(() => {
+      throw new Error('permission denied');
+    });
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'table').mockImplementation(() => {});
+
+    await tester.test('sequelize', 'dir', ['postgres:14'], true);
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to remove previous backup'),
+    );
+    expect(containerManager.copyFromContainer).toHaveBeenCalledWith(
+      'container123',
+      '/tmp/testdb.sql',
+      join(process.cwd(), 'exports', 'backups', 'Postgres 14', 'testdb.sql'),
+    );
+  });
+
   it('should detect installed version when version is current', async () => {
     vi.mocked(containerManager.checkDocker).mockResolvedValue(true);
     vi.mocked(containerManager.startContainer).mockResolvedValue('container123');
 
-    // Ensure isInstalled returns true so it treats as 'current'
-    mockPackageManager.isInstalled.mockResolvedValue(true);
+    vi.mocked(fs.existsSync).mockImplementation((path: fs.PathLike) =>
+      String(path).endsWith('package.json'),
+    );
+    vi.mocked(fs.readFileSync).mockReturnValue(
+      JSON.stringify({
+        dependencies: {
+          sequelize: '^6.37.8',
+        },
+      }),
+    );
+
+    mockPackageManager.isInstalled.mockImplementation(async (_pkg: string, scope: string) => {
+      if (scope === 'local') return true;
+      return false;
+    });
     mockPackageManager.getInstalledVersion.mockResolvedValue('6.37.5');
 
     const mockConnector = {

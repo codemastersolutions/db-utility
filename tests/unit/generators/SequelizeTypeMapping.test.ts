@@ -59,6 +59,45 @@ describe('SequelizeGenerator Type Mapping', () => {
     expect(content).toContain('type: DataTypes.STRING(100)');
   });
 
+  it('should map varchar(8000) to DataTypes.TEXT to avoid invalid MSSQL nvarchar bindings', async () => {
+    const col: ColumnMetadata = {
+      name: 'valorStr',
+      dataType: 'varchar',
+      maxLength: 8000,
+      isNullable: true,
+      hasDefault: false,
+      isPrimaryKey: false,
+      isUnique: false,
+      isAutoIncrement: false,
+    };
+
+    const files = await generator.generateMigrations(createSchema(col));
+    const content = files[0].content;
+
+    expect(content).toContain('valorStr: {');
+    expect(content).toContain('type: Sequelize.TEXT');
+    expect(content).not.toContain('Sequelize.STRING(8000)');
+  });
+
+  it('should keep nvarchar(4000) as DataTypes.STRING(4000)', async () => {
+    const col: ColumnMetadata = {
+      name: 'descricao',
+      dataType: 'nvarchar',
+      maxLength: 4000,
+      isNullable: true,
+      hasDefault: false,
+      isPrimaryKey: false,
+      isUnique: false,
+      isAutoIncrement: false,
+    };
+
+    const files = await generator.generate(createSchema(col));
+    const content = files[0].content;
+
+    expect(content).toContain('descricao: {');
+    expect(content).toContain('type: DataTypes.STRING(4000)');
+  });
+
   it('should map text to DataTypes.TEXT', async () => {
     const col: ColumnMetadata = {
       name: 'content',

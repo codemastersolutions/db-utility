@@ -239,47 +239,82 @@ export class ${migrationName} implements MigrationInterface {
     return name.charAt(0).toUpperCase() + name.slice(1);
   }
 
-  private mapType(dataType: string): string {
-    const lower = dataType.toLowerCase();
-    if (lower.includes('int')) return 'int';
-    if (lower.includes('char') || lower.includes('text')) return 'varchar';
-    if (lower.includes('bool')) return 'boolean';
-    if (lower.includes('date') || lower.includes('time')) return 'timestamp';
-    if (lower.includes('float') || lower.includes('double')) return 'float';
-    return 'varchar';
+  private mapType(
+    col: ColumnMetadata,
+  ): { type: string; length?: string; tsType: 'string' | 'number' | 'boolean' | 'Date' } {
+    const lower = col.dataType.toLowerCase();
+
+    if (lower.includes('int')) return { type: 'int', tsType: 'number' };
+    if (lower.includes('bool')) return { type: 'boolean', tsType: 'boolean' };
+    if (lower.includes('date') || lower.includes('time'))
+      return { type: 'timestamp', tsType: 'Date' };
+    if (lower.includes('float') || lower.includes('double'))
+      return { type: 'float', tsType: 'number' };
+    if (lower.includes('decimal') || lower.includes('numeric'))
+      return { type: 'decimal', tsType: 'number' };
+    if (
+      lower.includes('text') ||
+      lower.includes('ntext') ||
+      lower.includes('xml') ||
+      col.maxLength === -1
+    ) {
+      return { type: 'text', tsType: 'string' };
+    }
+    if (lower.includes('nvarchar')) {
+      return this.withLength('nvarchar', col.maxLength, 'string');
+    }
+    if (lower.includes('nchar')) {
+      return this.withLength('nchar', col.maxLength, 'string');
+    }
+    if (lower.includes('varchar')) {
+      return this.withLength('varchar', col.maxLength, 'string');
+    }
+    if (lower.includes('char')) {
+      return this.withLength('char', col.maxLength, 'string');
+    }
+
+    return { type: 'varchar', tsType: 'string' };
+  }
+
+  private withLength(
+    type: string,
+    maxLength: number | null | undefined,
+    tsType: 'string' | 'number' | 'boolean' | 'Date',
+  ): { type: string; length?: string; tsType: 'string' | 'number' | 'boolean' | 'Date' } {
+    if (maxLength && maxLength > 0) {
+      return { type, length: String(maxLength), tsType };
+    }
+
+    return { type, tsType };
   }
 
   private generateColumnDefinition(col: ColumnMetadata): string {
-    const type = this.mapType(col.dataType);
+    const mappedType = this.mapType(col);
     const decorator = col.isPrimaryKey ? '@PrimaryColumn' : '@Column';
 
     const options: string[] = [];
-    if (type) options.push(`type: '${type}'`);
+    options.push(`type: '${mappedType.type}'`);
+    if (mappedType.length) options.push(`length: '${mappedType.length}'`);
     if (col.isNullable) options.push('nullable: true');
     if (col.isUnique) options.push('unique: true');
     if (col.hasDefault && col.defaultValue !== null && col.defaultValue !== undefined) {
       options.push(`default: ${this.formatTypeOrmDefaultValue(col)}`);
     }
 
-    // TypeScript type
-    let tsType = 'string';
-    if (type === 'int' || type === 'float') tsType = 'number';
-    if (type === 'boolean') tsType = 'boolean';
-    if (type === 'timestamp') tsType = 'Date';
-
     return `  ${decorator}({ ${options.join(', ')} })
-  ${col.name}${col.isNullable ? '?' : ''}: ${tsType};`;
+  ${col.name}${col.isNullable ? '?' : ''}: ${mappedType.tsType};`;
   }
 
   private generateMigrationColumn(col: ColumnMetadata): string {
-    const type = this.mapType(col.dataType);
-    const parts = [`      name: '${col.name}'`, `      type: '${type}'`];
+    const mappedType = this.mapType(col);
+    const parts = [`      name: '${col.name}'`, `      type: '${mappedType.type}'`];
 
     if (col.isPrimaryKey) parts.push('      isPrimary: true');
     if (col.isAutoIncrement)
       parts.push('      isGenerated: true', "      generationStrategy: 'increment'");
     if (col.isNullable) parts.push('      isNullable: true');
     if (col.isUnique) parts.push('      isUnique: true');
+    if (mappedType.length) parts.push(`      length: '${mappedType.length}'`);
     if (col.hasDefault && col.defaultValue !== null && col.defaultValue !== undefined) {
       parts.push(`      default: ${this.formatTypeOrmDefaultValue(col)}`);
     }

@@ -419,12 +419,7 @@ module.exports = {
     )
       return 'DataTypes.TEXT';
 
-    if (lower.includes('char')) {
-      // char, varchar, nchar, nvarchar
-      if (col.maxLength === -1) return 'DataTypes.TEXT';
-      if (col.maxLength && col.maxLength > 0) return `DataTypes.STRING(${col.maxLength})`;
-      return 'DataTypes.STRING';
-    }
+    if (lower.includes('char')) return this.mapStringType(col);
 
     // Binary
     if (lower.includes('binary') || lower.includes('blob')) return 'DataTypes.BLOB';
@@ -432,6 +427,19 @@ module.exports = {
     // UUID
     if (lower.includes('uuid') || lower.includes('guid')) return 'DataTypes.UUID';
 
+    return 'DataTypes.STRING';
+  }
+
+  private mapStringType(col: ColumnMetadata): string {
+    if (col.maxLength === -1) return 'DataTypes.TEXT';
+
+    if (col.maxLength && col.maxLength > 4000) {
+      // Sequelize maps STRING to NVARCHAR on MSSQL. Large MSSQL strings such as
+      // varchar(8000) become invalid bindings, so fall back to TEXT for safety.
+      return 'DataTypes.TEXT';
+    }
+
+    if (col.maxLength && col.maxLength > 0) return `DataTypes.STRING(${col.maxLength})`;
     return 'DataTypes.STRING';
   }
 

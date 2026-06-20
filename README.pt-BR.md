@@ -14,8 +14,8 @@ DbUtility é um utilitário poderoso para manipulação de bancos de dados Micro
 - **Suporte Multi-Banco**: Conecte-se ao Microsoft SQL Server, MySQL e PostgreSQL usando drivers oficiais (`mssql`, `mysql2`, `pg`).
 - **Configuração Flexível**: Detalhes de conexão via CLI, `.env`, arquivos de configuração JSON.
 - **Introspecção**: Analise seu banco de dados para listar tabelas, views, stored procedures, funções e triggers.
-- **Exportação de Models**: Exporte tabelas do banco de dados para models do Sequelize, TypeORM e Prisma (Em breve).
-- **Geração de Migrations**: Crie migrations a partir de tabelas existentes no banco de dados para Sequelize, TypeORM e Prisma (Em breve).
+- **Exportação de Models**: Exporte tabelas do banco de dados para models do Sequelize, TypeORM, Prisma e Mongoose.
+- **Geração de Migrations**: Crie migrations de esquema e dados a partir de tabelas existentes no banco de dados para Sequelize e TypeORM.
 
 ## Instalação
 
@@ -24,6 +24,41 @@ npm install @codemastersolutions/db-utility
 # ou globalmente
 npm install -g @codemastersolutions/db-utility
 ```
+
+## Testes de Integração MSSQL
+
+O DbUtility inclui testes de integração opt-in para Microsoft SQL Server que validam os runners reais de migration contra um container Docker.
+
+Atualmente, esses testes cobrem:
+
+- migrations Sequelize com colunas de string longa no MSSQL
+- migrations TypeORM com colunas de string longa no MSSQL
+- inserções reais de valores com mais de 4000 caracteres sem erro de tamanho de parâmetro
+
+Pré-requisitos:
+
+- Docker instalado e disponível no seu `PATH`
+- Dependências de desenvolvimento instaladas com `pnpm install`
+
+Scripts disponíveis:
+
+```bash
+# Executa as duas suítes de integração MSSQL
+pnpm run test:integration:mssql
+
+# Executa apenas a integração Sequelize + MSSQL
+pnpm run test:integration:mssql:sequelize
+
+# Executa apenas a integração TypeORM + MSSQL
+pnpm run test:integration:mssql:typeorm
+```
+
+Observações:
+
+- Esses scripts ativam automaticamente `DBUTILITY_RUN_DOCKER_INTEGRATION=1`.
+- Eles usam `cross-env`, então os mesmos comandos funcionam em macOS, Linux e Windows.
+- Eles ficam separados de `pnpm test` para manter a suíte padrão rápida.
+- Os testes sobem containers reais do SQL Server e podem demorar mais do que os testes unitários.
 
 ## Uso de Internet
 

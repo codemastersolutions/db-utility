@@ -14,8 +14,8 @@ DbUtility es una utilidad poderosa para manipular bases de datos Microsoft SQL S
 - **Soporte Multi-Base de Datos**: Conéctese a Microsoft SQL Server, MySQL y PostgreSQL utilizando controladores oficiales (`mssql`, `mysql2`, `pg`).
 - **Configuración Flexible**: Detalles de conexión a través de CLI, `.env`, archivos de configuración JSON.
 - **Introspección**: Analice su base de datos para listar tablas, vistas, procedimientos almacenados, funciones y disparadores.
-- **Exportación de Modelos**: Exporte tablas de base de datos a modelos de Sequelize, TypeORM y Prisma (Próximamente).
-- **Generación de Migraciones**: Cree migraciones a partir de tablas existentes en la base de datos para Sequelize, TypeORM y Prisma (Próximamente).
+- **Exportación de Modelos**: Exporte tablas de base de datos a modelos de Sequelize, TypeORM, Prisma y Mongoose.
+- **Generación de Migraciones**: Cree migraciones de esquema y datos a partir de tablas existentes en la base de datos para Sequelize y TypeORM.
 
 ## Instalación
 
@@ -24,6 +24,41 @@ npm install @codemastersolutions/db-utility
 # o globalmente
 npm install -g @codemastersolutions/db-utility
 ```
+
+## Pruebas de Integracion MSSQL
+
+DbUtility incluye pruebas de integracion opt-in para Microsoft SQL Server que validan los runners reales de migracion contra un contenedor Docker.
+
+Actualmente, estas pruebas cubren:
+
+- migraciones Sequelize con columnas de texto largas en MSSQL
+- migraciones TypeORM con columnas de texto largas en MSSQL
+- inserciones reales de valores con mas de 4000 caracteres sin errores de tamano de parametro
+
+Prerequisitos:
+
+- Docker instalado y disponible en su `PATH`
+- Dependencias de desarrollo instaladas con `pnpm install`
+
+Scripts disponibles:
+
+```bash
+# Ejecuta las dos suites de integracion MSSQL
+pnpm run test:integration:mssql
+
+# Ejecuta solo la integracion Sequelize + MSSQL
+pnpm run test:integration:mssql:sequelize
+
+# Ejecuta solo la integracion TypeORM + MSSQL
+pnpm run test:integration:mssql:typeorm
+```
+
+Notas:
+
+- Estos scripts activan automaticamente `DBUTILITY_RUN_DOCKER_INTEGRATION=1`.
+- Usan `cross-env`, por lo que los mismos comandos funcionan en macOS, Linux y Windows.
+- Se mantienen separados de `pnpm test` para conservar la suite predeterminada rapida.
+- Las pruebas levantan contenedores reales de SQL Server y pueden tardar mas que las pruebas unitarias.
 
 ## Uso de Internet
 
@@ -136,7 +171,8 @@ La opción `dataTables` permite especificar qué tablas deben tener sus datos ex
   "permisos",
   {
     "table": "usuarios",
-    "where": "activo = 1 AND creado_en > '2023-01-01'"
+    "where": "activo = 1 AND creado_en > '2023-01-01'",
+    "disableIdentity": true
   },
   {
     "table": "registros",
@@ -144,6 +180,12 @@ La opción `dataTables` permite especificar qué tablas deben tener sus datos ex
   }
 ]
 ```
+
+La opción `disableIdentity` (predeterminado: `false`) permite insertar valores explícitos en columnas auto-increment/identity. Esto es útil cuando desea preservar los IDs originales de la base de datos de origen.
+
+- **MSSQL**: Envuelve las inserciones con `SET IDENTITY_INSERT [Table] ON/OFF`.
+- **PostgreSQL**: Reinicia el valor de la secuencia después de la inserción usando `setval` para evitar fallos en inserciones posteriores.
+- **Otras Bases de Datos (MySQL, SQLite)**: Incluye la columna identity en el payload de inserción (normalmente actualizan el contador auto-incremental automáticamente).
 
 ### Múltiples Conexiones
 
