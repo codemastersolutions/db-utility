@@ -461,11 +461,8 @@ module.exports = {
     if (col.isAutoIncrement && !suppressAutoIncrement) parts.push('        autoIncrement: true');
     if (!col.isNullable) parts.push('        allowNull: false');
     if (col.isUnique) parts.push('        unique: true');
-    if (col.hasDefault && col.defaultValue) {
-      // Raw values might need cleaning, using string for safety
-      parts.push(
-        `        defaultValue: Sequelize.literal('${col.defaultValue.replaceAll("'", "\\'")}')`,
-      );
+    if (col.hasDefault && col.defaultValue !== null && col.defaultValue !== undefined) {
+      parts.push(`        defaultValue: Sequelize.literal(${JSON.stringify(col.defaultValue)})`);
     }
 
     return `      ${col.name}: {\n${parts.join(',\n')}\n      }`;

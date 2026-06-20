@@ -86,7 +86,7 @@ export class MssqlIntrospector extends BaseIntrospector {
         dataType: c.data_type,
         isNullable: c.is_nullable === 'YES',
         hasDefault: c.column_default !== null,
-        defaultValue: c.column_default,
+        defaultValue: this.normalizeDefaultValue(c.column_default),
         isPrimaryKey: pkSet ? pkSet.has(c.column_name) : false,
         isUnique: false,
         isAutoIncrement: c.is_identity === 1,
@@ -255,5 +255,59 @@ export class MssqlIntrospector extends BaseIntrospector {
     `;
 
     return this.connector.query<MssqlFkRow>(sql);
+  }
+
+  private normalizeDefaultValue(defaultValue: string | null): string | null {
+    if (defaultValue === null) {
+      return null;
+    }
+
+    let normalized = defaultValue.trim();
+
+    while (this.hasWrappedOuterParentheses(normalized)) {
+      normalized = normalized.slice(1, -1).trim();
+    }
+
+    return normalized;
+  }
+
+  private hasWrappedOuterParentheses(value: string): boolean {
+    if (value.length < 2 || !value.startsWith('(') || !value.endsWith(')')) {
+      return false;
+    }
+
+    let depth = 0;
+    let inString = false;
+
+    for (let index = 0; index < value.length; index++) {
+      const char = value[index];
+      const next = value[index + 1];
+
+      if (char === "'") {
+        if (inString && next === "'") {
+          index++;
+          continue;
+        }
+
+        inString = !inString;
+        continue;
+      }
+
+      if (inString) {
+        continue;
+      }
+
+      if (char === '(') {
+        depth++;
+      } else if (char === ')') {
+        depth--;
+
+        if (depth === 0 && index < value.length - 1) {
+          return false;
+        }
+      }
+    }
+
+    return depth === 0 && !inString;
   }
 }
