@@ -48,7 +48,7 @@ describe('MssqlIntrospector', () => {
           },
           {
             table_name: 'Users',
-            column_name: 'customSql',
+            column_name: 'legacyDefault',
             data_type: 'smallint',
             is_nullable: 'NO',
             column_default: 'CREATE DEFAULT DEF_DLOGICNULL AS 0\r\nFOR [customSql]',
@@ -70,8 +70,6 @@ describe('MssqlIntrospector', () => {
     expect(columns.find((column) => column.name === 'status')?.defaultValue).toBe('0');
     expect(columns.find((column) => column.name === 'name')?.defaultValue).toBe("N'guest'");
     expect(columns.find((column) => column.name === 'createdAt')?.defaultValue).toBe('getdate()');
-    expect(columns.find((column) => column.name === 'customSql')?.defaultValue).toBe(
-      'CREATE DEFAULT DEF_DLOGICNULL AS 0\r\nFOR [customSql]',
-    );
+    expect(columns.find((column) => column.name === 'legacyDefault')?.defaultValue).toBe('0');
   });
 });

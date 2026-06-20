@@ -1,5 +1,6 @@
 import { ColumnMetadata, DatabaseSchema, TableData } from '../types/introspection';
 import { filterAutoIncrementColumns } from '../utils/DataUtils';
+import { classifyDatabaseDefault, inferDefaultLogicalType } from '../utils/DefaultValueUtils';
 import { topologicalSort } from '../utils/topologicalSort';
 import {
   DataMigrationGenerator,
@@ -443,7 +444,7 @@ module.exports = {
     if (!col.isNullable) parts.push('      allowNull: false');
     if (col.isUnique) parts.push('      unique: true');
     if (col.hasDefault && col.defaultValue !== null) {
-      parts.push(`      defaultValue: ${JSON.stringify(col.defaultValue)}`); // Simplification
+      parts.push(`      defaultValue: ${this.formatSequelizeDefaultValue(col)}`);
     }
 
     return `      ${col.name}: {\n${parts.join(',\n')}\n      }`;
@@ -462,9 +463,31 @@ module.exports = {
     if (!col.isNullable) parts.push('        allowNull: false');
     if (col.isUnique) parts.push('        unique: true');
     if (col.hasDefault && col.defaultValue !== null && col.defaultValue !== undefined) {
-      parts.push(`        defaultValue: Sequelize.literal(${JSON.stringify(col.defaultValue)})`);
+      parts.push(`        defaultValue: ${this.formatSequelizeDefaultValue(col)}`);
     }
 
     return `      ${col.name}: {\n${parts.join(',\n')}\n      }`;
   }
+
+  private formatSequelizeDefaultValue(col: ColumnMetadata): string {
+    const classification = classifyDatabaseDefault(
+      col.defaultValue ?? '',
+      inferDefaultLogicalType(col.dataType),
+    );
+
+    switch (classification.kind) {
+      case 'empty':
+        return '""';
+      case 'string':
+        return JSON.stringify(classification.value);
+      case 'number':
+        return classification.value;
+      case 'boolean':
+        return classification.value ? 'true' : 'false';
+      case 'date_now':
+      case 'expression':
+        return `Sequelize.literal(${JSON.stringify(classification.normalized)})`;
+    }
+  }
+
 }

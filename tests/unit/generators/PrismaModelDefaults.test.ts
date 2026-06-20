@@ -1,23 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { SequelizeGenerator } from '../../../src/generators/SequelizeGenerator';
+import { PrismaGenerator } from '../../../src/generators/PrismaGenerator';
 import { DatabaseSchema } from '../../../src/types/introspection';
 
-describe('Sequelize Migration Defaults', () => {
+describe('Prisma Model Defaults', () => {
   it('should convert legacy MSSQL CREATE DEFAULT statements to primitive defaults', async () => {
-    const rawDefault = 'CREATE DEFAULT DEF_DLOGICNULL AS 0\r\nFOR [INDSELECAO]';
     const schema: DatabaseSchema = {
       tables: [
         {
           name: 'Teste',
           columns: [
             {
-              name: 'INDSELECAO',
+              name: 'status',
               dataType: 'smallint',
               isPrimaryKey: false,
               isAutoIncrement: false,
               isNullable: false,
               hasDefault: true,
-              defaultValue: rawDefault,
+              defaultValue: 'CREATE DEFAULT DEF_DLOGICNULL AS 0\r\nFOR [status]',
               isUnique: false,
             },
           ],
@@ -27,29 +26,28 @@ describe('Sequelize Migration Defaults', () => {
       ],
     };
 
-    const generator = new SequelizeGenerator();
-    const [migration] = await generator.generateMigrations(schema);
+    const generator = new PrismaGenerator();
+    const [file] = await generator.generate(schema);
 
-    expect(migration.content).toContain('defaultValue: 0');
-    expect(migration.content).not.toContain('CREATE DEFAULT DEF_DLOGICNULL AS 0');
+    expect(file.content).toContain('status Int @default(0)');
+    expect(file.content).not.toContain('CREATE DEFAULT DEF_DLOGICNULL AS 0');
   });
 
-  it('should keep empty string defaults in generated migrations', async () => {
+  it('should convert SQL string defaults to Prisma string defaults', async () => {
     const schema: DatabaseSchema = {
       tables: [
         {
           name: 'Teste',
           columns: [
             {
-              name: 'CODIGO',
-              dataType: 'varchar',
+              name: 'name',
+              dataType: 'nvarchar',
               isPrimaryKey: false,
               isAutoIncrement: false,
               isNullable: false,
               hasDefault: true,
-              defaultValue: '',
+              defaultValue: "(N'guest')",
               isUnique: false,
-              maxLength: 10,
             },
           ],
           indexes: [],
@@ -58,20 +56,20 @@ describe('Sequelize Migration Defaults', () => {
       ],
     };
 
-    const generator = new SequelizeGenerator();
-    const [migration] = await generator.generateMigrations(schema);
+    const generator = new PrismaGenerator();
+    const [file] = await generator.generate(schema);
 
-    expect(migration.content).toContain('defaultValue: ""');
+    expect(file.content).toContain('name String @default("guest")');
   });
 
-  it('should keep SQL expressions as Sequelize literals in generated migrations', async () => {
+  it('should map SQL date functions to Prisma now()', async () => {
     const schema: DatabaseSchema = {
       tables: [
         {
           name: 'Teste',
           columns: [
             {
-              name: 'CRIADOEM',
+              name: 'createdAt',
               dataType: 'datetime',
               isPrimaryKey: false,
               isAutoIncrement: false,
@@ -87,28 +85,27 @@ describe('Sequelize Migration Defaults', () => {
       ],
     };
 
-    const generator = new SequelizeGenerator();
-    const [migration] = await generator.generateMigrations(schema);
+    const generator = new PrismaGenerator();
+    const [file] = await generator.generate(schema);
 
-    expect(migration.content).toContain('defaultValue: Sequelize.literal("getdate()")');
+    expect(file.content).toContain('createdAt DateTime @default(now())');
   });
 
-  it('should convert SQL string defaults to JavaScript string defaults', async () => {
+  it('should skip unsupported SQL expressions in Prisma models', async () => {
     const schema: DatabaseSchema = {
       tables: [
         {
           name: 'Teste',
           columns: [
             {
-              name: 'NOME',
-              dataType: 'nvarchar',
+              name: 'codigo',
+              dataType: 'varchar',
               isPrimaryKey: false,
               isAutoIncrement: false,
               isNullable: false,
               hasDefault: true,
-              defaultValue: "(N'guest')",
+              defaultValue: '(newid())',
               isUnique: false,
-              maxLength: 100,
             },
           ],
           indexes: [],
@@ -117,9 +114,10 @@ describe('Sequelize Migration Defaults', () => {
       ],
     };
 
-    const generator = new SequelizeGenerator();
-    const [migration] = await generator.generateMigrations(schema);
+    const generator = new PrismaGenerator();
+    const [file] = await generator.generate(schema);
 
-    expect(migration.content).toContain('defaultValue: "guest"');
+    expect(file.content).toContain('codigo String');
+    expect(file.content).not.toContain('codigo String @default(');
   });
 });

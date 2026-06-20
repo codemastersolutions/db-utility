@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { SequelizeGenerator } from '../../../src/generators/SequelizeGenerator';
+import { TypeORMGenerator } from '../../../src/generators/TypeORMGenerator';
 import { DatabaseSchema } from '../../../src/types/introspection';
 
-describe('Sequelize Migration Defaults', () => {
+describe('TypeORM Migration Defaults', () => {
   it('should convert legacy MSSQL CREATE DEFAULT statements to primitive defaults', async () => {
     const rawDefault = 'CREATE DEFAULT DEF_DLOGICNULL AS 0\r\nFOR [INDSELECAO]';
     const schema: DatabaseSchema = {
@@ -27,10 +27,10 @@ describe('Sequelize Migration Defaults', () => {
       ],
     };
 
-    const generator = new SequelizeGenerator();
+    const generator = new TypeORMGenerator();
     const [migration] = await generator.generateMigrations(schema);
 
-    expect(migration.content).toContain('defaultValue: 0');
+    expect(migration.content).toContain('default: 0');
     expect(migration.content).not.toContain('CREATE DEFAULT DEF_DLOGICNULL AS 0');
   });
 
@@ -58,13 +58,13 @@ describe('Sequelize Migration Defaults', () => {
       ],
     };
 
-    const generator = new SequelizeGenerator();
+    const generator = new TypeORMGenerator();
     const [migration] = await generator.generateMigrations(schema);
 
-    expect(migration.content).toContain('defaultValue: ""');
+    expect(migration.content).toContain('default: ""');
   });
 
-  it('should keep SQL expressions as Sequelize literals in generated migrations', async () => {
+  it('should keep SQL expressions as closures in generated migrations', async () => {
     const schema: DatabaseSchema = {
       tables: [
         {
@@ -87,10 +87,10 @@ describe('Sequelize Migration Defaults', () => {
       ],
     };
 
-    const generator = new SequelizeGenerator();
+    const generator = new TypeORMGenerator();
     const [migration] = await generator.generateMigrations(schema);
 
-    expect(migration.content).toContain('defaultValue: Sequelize.literal("getdate()")');
+    expect(migration.content).toContain('default: () => "getdate()"');
   });
 
   it('should convert SQL string defaults to JavaScript string defaults', async () => {
@@ -117,9 +117,9 @@ describe('Sequelize Migration Defaults', () => {
       ],
     };
 
-    const generator = new SequelizeGenerator();
+    const generator = new TypeORMGenerator();
     const [migration] = await generator.generateMigrations(schema);
 
-    expect(migration.content).toContain('defaultValue: "guest"');
+    expect(migration.content).toContain('default: "guest"');
   });
 });

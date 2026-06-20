@@ -1,5 +1,6 @@
 import { ColumnMetadata, DatabaseSchema, TableData } from '../types/introspection';
 import { filterAutoIncrementColumns } from '../utils/DataUtils';
+import { classifyDatabaseDefault, inferDefaultLogicalType } from '../utils/DefaultValueUtils';
 import { topologicalSort } from '../utils/topologicalSort';
 import {
   DataMigrationGenerator,
@@ -256,8 +257,8 @@ export class ${migrationName} implements MigrationInterface {
     if (type) options.push(`type: '${type}'`);
     if (col.isNullable) options.push('nullable: true');
     if (col.isUnique) options.push('unique: true');
-    if (col.hasDefault && col.defaultValue) {
-      options.push(`default: () => "${col.defaultValue.replaceAll('"', '\\"')}"`);
+    if (col.hasDefault && col.defaultValue !== null && col.defaultValue !== undefined) {
+      options.push(`default: ${this.formatTypeOrmDefaultValue(col)}`);
     }
 
     // TypeScript type
@@ -279,12 +280,34 @@ export class ${migrationName} implements MigrationInterface {
       parts.push('      isGenerated: true', "      generationStrategy: 'increment'");
     if (col.isNullable) parts.push('      isNullable: true');
     if (col.isUnique) parts.push('      isUnique: true');
-    if (col.hasDefault && col.defaultValue) {
-      parts.push(`      default: "${col.defaultValue.replaceAll('"', '\\"')}"`);
+    if (col.hasDefault && col.defaultValue !== null && col.defaultValue !== undefined) {
+      parts.push(`      default: ${this.formatTypeOrmDefaultValue(col)}`);
     }
 
     return `      {
 ${parts.join(',\n')}
       }`;
   }
+
+  private formatTypeOrmDefaultValue(col: ColumnMetadata): string {
+    const classification = classifyDatabaseDefault(
+      col.defaultValue ?? '',
+      inferDefaultLogicalType(col.dataType),
+    );
+
+    switch (classification.kind) {
+      case 'empty':
+        return '""';
+      case 'string':
+        return JSON.stringify(classification.value);
+      case 'number':
+        return classification.value;
+      case 'boolean':
+        return classification.value ? 'true' : 'false';
+      case 'date_now':
+      case 'expression':
+        return `() => ${JSON.stringify(classification.normalized)}`;
+    }
+  }
+
 }

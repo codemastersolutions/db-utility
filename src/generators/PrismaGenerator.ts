@@ -1,4 +1,5 @@
 import { ColumnMetadata, DatabaseSchema } from '../types/introspection';
+import { classifyDatabaseDefault, inferDefaultLogicalType } from '../utils/DefaultValueUtils';
 import { GeneratedFile, SchemaGenerator } from './GeneratorTypes';
 
 export class PrismaGenerator implements SchemaGenerator {
@@ -95,15 +96,35 @@ export class PrismaGenerator implements SchemaGenerator {
 
     // Default values
     if (col.hasDefault && col.defaultValue !== null) {
-      // Simple defaults
-      if (col.defaultValue === 'now()' || col.defaultValue === 'CURRENT_TIMESTAMP') {
-        mods += ' @default(now())';
-      } else {
-        // String defaults often come with quotes from DB, strip them?
-        // For now, keep simple.
+      const defaultModifier = this.formatPrismaDefaultValue(col);
+      if (defaultModifier) {
+        mods += ` ${defaultModifier}`;
       }
     }
 
     return mods;
   }
+
+  private formatPrismaDefaultValue(col: ColumnMetadata): string | null {
+    const classification = classifyDatabaseDefault(
+      col.defaultValue ?? '',
+      inferDefaultLogicalType(col.dataType),
+    );
+
+    switch (classification.kind) {
+      case 'empty':
+        return '@default("")';
+      case 'string':
+        return `@default(${JSON.stringify(classification.value)})`;
+      case 'number':
+        return `@default(${classification.value})`;
+      case 'boolean':
+        return `@default(${classification.value ? 'true' : 'false'})`;
+      case 'date_now':
+        return '@default(now())';
+      case 'expression':
+        return null;
+    }
+  }
+
 }

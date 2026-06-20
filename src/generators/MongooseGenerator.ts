@@ -2,6 +2,7 @@ import {
   ColumnMetadata,
   DatabaseSchema,
 } from '../types/introspection';
+import { classifyDatabaseDefault, inferDefaultLogicalType } from '../utils/DefaultValueUtils';
 import { GeneratedFile, SchemaGenerator } from './GeneratorTypes';
 
 export class MongooseGenerator implements SchemaGenerator {
@@ -59,16 +60,16 @@ export const ${className} = model<I${className}>('${className}', ${className}Sch
   private generateFieldDefinition(col: ColumnMetadata): string {
     const type = this.getMongooseType(col.dataType);
     const parts = [`    type: ${type}`];
-    
+
     if (!col.isNullable) parts.push('    required: true');
     // Unique is handled by schema.index to preserve names
     // if (col.isUnique) parts.push('    unique: true');
-    
-    if (col.hasDefault && col.defaultValue) {
-        // Simple default handling
-        if (!col.defaultValue.includes('(')) { // Avoid function calls like now()
-            parts.push(`    default: ${JSON.stringify(col.defaultValue)}`);
-        }
+
+    if (col.hasDefault && col.defaultValue !== null && col.defaultValue !== undefined) {
+      const defaultValue = this.formatMongooseDefaultValue(col);
+      if (defaultValue !== null) {
+        parts.push(`    default: ${defaultValue}`);
+      }
     }
 
     return `  ${col.name}: {\n${parts.join(',\n')}\n  }`;
@@ -81,4 +82,27 @@ export const ${className} = model<I${className}>('${className}', ${className}Sch
     if (lower.includes('date') || lower.includes('time')) return 'Date';
     return 'String';
   }
+
+  private formatMongooseDefaultValue(col: ColumnMetadata): string | null {
+    const classification = classifyDatabaseDefault(
+      col.defaultValue ?? '',
+      inferDefaultLogicalType(col.dataType),
+    );
+
+    switch (classification.kind) {
+      case 'empty':
+        return '""';
+      case 'string':
+        return JSON.stringify(classification.value);
+      case 'number':
+        return classification.value;
+      case 'boolean':
+        return classification.value ? 'true' : 'false';
+      case 'date_now':
+        return 'Date.now';
+      case 'expression':
+        return null;
+    }
+  }
+
 }
