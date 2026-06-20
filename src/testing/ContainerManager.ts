@@ -2,6 +2,10 @@ import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 
 const execAsync = promisify(exec);
+const shellEscape = (value: string): string => {
+  const escapedValue = value.replaceAll(`'`, `'"'"'`);
+  return `'${escapedValue}'`;
+};
 
 export class ContainerManager {
   async checkDocker(): Promise<boolean> {
@@ -60,7 +64,7 @@ export class ContainerManager {
 
   async stopContainer(containerId: string): Promise<void> {
     try {
-      await execAsync(`docker stop ${containerId}`);
+      await execAsync(`docker stop ${shellEscape(containerId)}`);
     } catch (error) {
       console.error(`Failed to stop container ${containerId}:`, error);
     }
@@ -77,12 +81,31 @@ export class ContainerManager {
             .map(([key, value]) => `-e ${key}='${value}'`)
             .join(' ')
         : '';
-      const { stdout } = await execAsync(`docker exec ${envString} ${containerId} ${command}`);
+      const { stdout } = await execAsync(
+        `docker exec ${envString} ${shellEscape(containerId)} ${command}`,
+      );
       return stdout;
-    } catch (error: any) {
-      const stderr = error.stderr ? `\nStderr: ${error.stderr}` : '';
-      const stdout = error.stdout ? `\nStdout: ${error.stdout}` : '';
-      throw new Error(`Failed to execute command in container: ${error.message}${stdout}${stderr}`);
+    } catch (error: unknown) {
+      const commandError = error as { message?: string; stderr?: string; stdout?: string };
+      const stderr = commandError.stderr ? `\nStderr: ${commandError.stderr}` : '';
+      const stdout = commandError.stdout ? `\nStdout: ${commandError.stdout}` : '';
+      const message = commandError.message ?? String(error);
+      throw new Error(`Failed to execute command in container: ${message}${stdout}${stderr}`);
+    }
+  }
+
+  async copyFromContainer(
+    containerId: string,
+    sourcePath: string,
+    destinationPath: string,
+  ): Promise<void> {
+    try {
+      const containerSource = `${containerId}:${sourcePath}`;
+      await execAsync(`docker cp ${shellEscape(containerSource)} ${shellEscape(destinationPath)}`);
+    } catch (error) {
+      throw new Error(
+        `Failed to copy file from container: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 }

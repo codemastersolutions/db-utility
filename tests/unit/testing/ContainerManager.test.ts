@@ -51,6 +51,20 @@ describe('ContainerManager', () => {
     const manager = new ContainerManager();
     await manager.stopContainer('container123');
 
-    expect(exec).toHaveBeenCalledWith('docker stop container123', expect.any(Function));
+    expect(exec).toHaveBeenCalledWith("docker stop 'container123'", expect.any(Function));
+  });
+
+  it('copyFromContainer should run correct docker cp command', async () => {
+    (exec as unknown as ReturnType<typeof vi.fn>).mockImplementation((cmd, cb) => {
+      cb(null, { stdout: '' });
+    });
+
+    const manager = new ContainerManager();
+    await manager.copyFromContainer('container123', '/tmp/test.bak', '/host/test.bak');
+
+    expect(exec).toHaveBeenCalledWith(
+      "docker cp 'container123:/tmp/test.bak' '/host/test.bak'",
+      expect.any(Function),
+    );
   });
 });

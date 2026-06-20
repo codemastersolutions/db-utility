@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { existsSync, readFileSync, mkdirSync, chmodSync, unlinkSync } from 'node:fs';
+import { existsSync, readFileSync, mkdirSync, unlinkSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { ContainerManager } from './ContainerManager';
 import { MigrationRunner } from './runners/MigrationRunner';
@@ -336,6 +336,7 @@ export class MigrationTester {
     const port = Math.floor(Math.random() * (60000 - 10000) + 10000); // Random port
     const image = this.getImageName(engine.type, engine.version);
     const dbName = engine.databaseName || 'testdb';
+    const backupFileName = `${dbName}.${engine.type === 'mssql' ? 'bak' : 'sql'}`;
 
     let containerId: string | null = null;
 
@@ -343,7 +344,6 @@ export class MigrationTester {
       await this.ensureDialectDependencies(target, engine.type);
 
       console.log(`Starting container ${image} on port ${port}...`);
-      let volumes: Record<string, string> | undefined;
       console.log('Backup flag:', backup);
 
       if (backup) {
@@ -353,14 +353,6 @@ export class MigrationTester {
         if (!existsSync(backupDir)) {
           mkdirSync(backupDir, { recursive: true });
         }
-        try {
-          chmodSync(backupDir, '777'); // Ensure container can write to it
-        } catch (e) {
-          console.warn(
-            `Failed to chmod ${backupDir}: ${e instanceof Error ? e.message : String(e)}`,
-          );
-        }
-        volumes = { [backupDir]: '/backup' };
       }
 
       containerId = await this.containerManager.startContainer(
@@ -368,7 +360,6 @@ export class MigrationTester {
         this.getEnv(engine.type, password, dbName),
         port,
         engine.type === 'mssql' ? 1433 : engine.type === 'mysql' ? 3306 : 5432,
-        volumes,
       );
 
       // Wait for DB to be ready
@@ -404,8 +395,7 @@ export class MigrationTester {
         console.log('Exporting database backup...');
         const friendlyName = this.getFriendlyName(engine.type, engine.version);
         const backupDir = join(process.cwd(), 'exports', 'backups', friendlyName);
-        const backupExt = engine.type === 'mssql' ? 'bak' : 'sql';
-        const backupFile = join(backupDir, `${dbName}.${backupExt}`);
+        const backupFile = join(backupDir, backupFileName);
 
         try {
           if (existsSync(backupFile)) {
@@ -418,6 +408,10 @@ export class MigrationTester {
         }
 
         if (engine.type === 'mssql') {
+          const containerBackupPath = `/var/opt/mssql/backup/${backupFileName}`;
+
+          await this.containerManager.execInContainer(containerId, 'mkdir -p /var/opt/mssql/backup');
+
           // Check for sqlcmd location (ODBC 18 uses mssql-tools18 and requires -C for TrustServerCertificate)
           let sqlCmdPath = '/opt/mssql-tools/bin/sqlcmd';
           let extraArgs = '';
@@ -435,23 +429,45 @@ export class MigrationTester {
 
           await this.containerManager.execInContainer(
             containerId,
-            `${sqlCmdPath} -S localhost -U sa${extraArgs} -Q "BACKUP DATABASE [${dbName}] TO DISK = '/backup/${dbName}.bak'"`,
+            `${sqlCmdPath} -S localhost -U sa${extraArgs} -Q "BACKUP DATABASE [${dbName}] TO DISK = '${containerBackupPath}'"`,
             { SQLCMDPASSWORD: password },
           );
+
+          await this.containerManager.copyFromContainer(
+            containerId,
+            containerBackupPath,
+            backupFile,
+          );
         } else if (engine.type === 'mysql') {
+          const containerBackupPath = `/tmp/${backupFileName}`;
+
           await this.containerManager.execInContainer(
             containerId,
-            `sh -c "mysqldump -u root -p'${password}' ${dbName} > /backup/${dbName}.sql"`,
+            `sh -c "mysqldump -u root -p'${password}' ${dbName} > ${containerBackupPath}"`,
+          );
+
+          await this.containerManager.copyFromContainer(
+            containerId,
+            containerBackupPath,
+            backupFile,
           );
         } else if (engine.type === 'postgres') {
+          const containerBackupPath = `/tmp/${backupFileName}`;
+
           await this.containerManager.execInContainer(
             containerId,
-            `sh -c "pg_dump -U postgres ${dbName} > /backup/${dbName}.sql"`,
+            `sh -c "pg_dump -U postgres ${dbName} > ${containerBackupPath}"`,
             { PGPASSWORD: password },
+          );
+
+          await this.containerManager.copyFromContainer(
+            containerId,
+            containerBackupPath,
+            backupFile,
           );
         }
         console.log(
-          `Backup exported to ${join('exports', 'backups', friendlyName, `${dbName}.${backupExt}`)}`,
+          `Backup exported to ${join('exports', 'backups', friendlyName, backupFileName)}`,
         );
       }
 

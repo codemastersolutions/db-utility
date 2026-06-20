@@ -17,7 +17,6 @@ vi.mock('node:fs', () => ({
   existsSync: vi.fn(),
   readFileSync: vi.fn(),
   mkdirSync: vi.fn(),
-  chmodSync: vi.fn(),
   unlinkSync: vi.fn(),
 }));
 vi.mock('../../../src/testing/runners/SequelizeRunner', () => ({
@@ -169,7 +168,6 @@ describe('MigrationTester', () => {
       expect.any(Object),
       expect.any(Number),
       expect.any(Number),
-      undefined,
     );
   });
 
@@ -215,6 +213,7 @@ describe('MigrationTester', () => {
     vi.mocked(containerManager.checkDocker).mockResolvedValue(true);
     vi.mocked(containerManager.startContainer).mockResolvedValue('container123');
     vi.mocked(containerManager.execInContainer).mockResolvedValue('');
+    vi.mocked(containerManager.copyFromContainer).mockResolvedValue(undefined);
 
     const mockConnector = {
       connect: vi.fn().mockResolvedValue(undefined),
@@ -234,7 +233,6 @@ describe('MigrationTester', () => {
 
     vi.mocked(fs.existsSync).mockReturnValue(false);
     vi.mocked(fs.mkdirSync).mockReturnValue(undefined);
-    vi.mocked(fs.chmodSync).mockReturnValue(undefined);
 
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'table').mockImplementation(() => {});
@@ -244,33 +242,38 @@ describe('MigrationTester', () => {
     expect(fs.mkdirSync).toHaveBeenCalledWith(expect.stringContaining('exports'), {
       recursive: true,
     });
-    expect(fs.chmodSync).toHaveBeenCalledWith(expect.stringContaining('exports'), '777');
 
-    const backupDir = join(process.cwd(), 'exports', 'backups', 'Postgres 14');
     expect(containerManager.startContainer).toHaveBeenCalledWith(
       expect.stringContaining('postgres:14'),
       expect.any(Object),
       expect.any(Number),
       expect.any(Number),
-      { [backupDir]: '/backup' },
     );
 
     expect(containerManager.execInContainer).toHaveBeenCalledWith(
       'container123',
-      expect.stringContaining('pg_dump'),
+      expect.stringContaining('pg_dump -U postgres testdb > /tmp/testdb.sql'),
       expect.any(Object),
+    );
+    expect(containerManager.copyFromContainer).toHaveBeenCalledWith(
+      'container123',
+      '/tmp/testdb.sql',
+      join(process.cwd(), 'exports', 'backups', 'Postgres 14', 'testdb.sql'),
     );
   });
 
   it('should execute backup command for MSSQL', async () => {
     vi.mocked(containerManager.checkDocker).mockResolvedValue(true);
     vi.mocked(containerManager.startContainer).mockResolvedValue('container123');
+    vi.mocked(containerManager.copyFromContainer).mockResolvedValue(undefined);
     // Mock execInContainer for two calls:
-    // 1. probe check (ls) -> resolve (success)
-    // 2. backup command -> resolve (success)
+    // 1. ensure backup dir exists
+    // 2. probe check (ls) -> resolve (success)
+    // 3. backup command -> resolve (success)
     vi.mocked(containerManager.execInContainer)
-      .mockResolvedValueOnce('/opt/mssql-tools18/bin/sqlcmd') // ls success
-      .mockResolvedValueOnce(''); // backup success
+      .mockResolvedValueOnce('')
+      .mockResolvedValueOnce('/opt/mssql-tools18/bin/sqlcmd')
+      .mockResolvedValueOnce('');
 
     const mockConnector = {
       connect: vi.fn().mockResolvedValue(undefined),
@@ -290,7 +293,6 @@ describe('MigrationTester', () => {
 
     vi.mocked(fs.existsSync).mockReturnValue(false);
     vi.mocked(fs.mkdirSync).mockReturnValue(undefined);
-    vi.mocked(fs.chmodSync).mockReturnValue(undefined);
 
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'table').mockImplementation(() => {});
@@ -299,6 +301,12 @@ describe('MigrationTester', () => {
 
     expect(containerManager.execInContainer).toHaveBeenNthCalledWith(
       1,
+      'container123',
+      'mkdir -p /var/opt/mssql/backup',
+    );
+
+    expect(containerManager.execInContainer).toHaveBeenNthCalledWith(
+      2,
       'container123',
       'ls /opt/mssql-tools18/bin/sqlcmd',
     );
@@ -312,6 +320,11 @@ describe('MigrationTester', () => {
       'container123',
       expect.stringContaining('/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -Q'),
       expect.objectContaining({ SQLCMDPASSWORD: expect.any(String) }),
+    );
+    expect(containerManager.copyFromContainer).toHaveBeenCalledWith(
+      'container123',
+      '/var/opt/mssql/backup/testdb.bak',
+      join(process.cwd(), 'exports', 'backups', 'Microsoft SQL Server 2019', 'testdb.bak'),
     );
   });
 
