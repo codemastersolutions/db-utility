@@ -27,7 +27,7 @@ const appConfig = AppConfigLoader.load();
 const messages = getMessages(appConfig.language);
 
 import { VersionChecker } from './VersionChecker';
-import { resolveMigrationOutputDir } from './helpers';
+import { buildIntrospectionWarnings, resolveMigrationOutputDir } from './helpers';
 
 const getPackageVersion = (): string => {
   try {
@@ -172,6 +172,11 @@ const runTest = async (options: {
   await tester.test(target, migrationsDir, engines, backup);
 };
 
+const printIntrospectionWarnings = (schema: Parameters<typeof buildIntrospectionWarnings>[0]) => {
+  const warnings = buildIntrospectionWarnings(schema, messages.cli);
+  warnings.forEach((warning) => console.warn(warning));
+};
+
 const getGenerator = (target: string) => {
   switch (target.toLowerCase()) {
     case 'sequelize':
@@ -258,6 +263,7 @@ addConnectionOptions(introspectCommand).action(async (options: CliOptions) => {
 
     console.log(messages.cli.introspectDone(schema.tables.length));
     console.log(messages.cli.introspectSavedAt(runDir));
+    printIntrospectionWarnings(schema);
   });
 });
 
@@ -282,6 +288,7 @@ addConnectionOptions(exportCommand)
 
       const service = new IntrospectionService(connector, config);
       const schema = await service.introspect();
+      printIntrospectionWarnings(schema);
 
       const generator = getGenerator(target);
       console.log(`Generating models for ${target}...`);
@@ -325,6 +332,7 @@ addConnectionOptions(migrateCommand)
 
       const service = new IntrospectionService(connector, config);
       const schema = await service.introspect();
+      printIntrospectionWarnings(schema);
 
       const generator = getGenerator(target);
 

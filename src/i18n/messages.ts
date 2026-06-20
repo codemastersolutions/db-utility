@@ -27,6 +27,16 @@ export interface CliMessages {
   introspectConnecting: (database?: string) => string;
   introspectDone: (tables: number) => string;
   introspectSavedAt: (dir: string) => string;
+  schemaLimitSummary: string;
+  tablesOverColumnLimit: (count: number) => string;
+  tableOverColumnLimitItem: (tableName: string, columnCount: number) => string;
+  indexesOverKeyColumnLimit: (count: number) => string;
+  indexOverKeyColumnLimitItem: (
+    tableName: string,
+    indexName: string,
+    keyColumnCount: number,
+  ) => string;
+  schemaLimitMetadataHint: string;
   exportDevMessage: string;
   migrateDevMessage: string;
   initAlreadyExists: (path: string) => string;
@@ -82,6 +92,18 @@ const ptBrMessages: Messages = {
       `Conectando para introspecção em ${database || '(sem nome)'}...`,
     introspectDone: (tables: number) => `Introspecção concluída. ${tables} tabelas encontradas.`,
     introspectSavedAt: (dir: string) => `Arquivos de introspecção salvos em: ${dir}`,
+    schemaLimitSummary:
+      'Atenção: a introspecção identificou estruturas que exigem cuidado na geração de models e migrations.',
+    tablesOverColumnLimit: (count: number) =>
+      `Tabelas com mais de 32 colunas identificadas: ${count}.`,
+    tableOverColumnLimitItem: (tableName: string, columnCount: number) =>
+      `- Tabela ${tableName} com ${columnCount} colunas.`,
+    indexesOverKeyColumnLimit: (count: number) =>
+      `Índices com mais de 32 colunas-chave identificados: ${count}.`,
+    indexOverKeyColumnLimitItem: (tableName: string, indexName: string, keyColumnCount: number) =>
+      `- Índice ${indexName} na tabela ${tableName} com ${keyColumnCount} colunas-chave.`,
+    schemaLimitMetadataHint:
+      'Consulte o metadata.json gerado para ver a lista completa e os detalhes desses casos.',
     exportDevMessage: 'Funcionalidade de exportação em desenvolvimento.',
     migrateDevMessage: 'Funcionalidade de migration em desenvolvimento.',
     initAlreadyExists: (path: string) =>
@@ -146,6 +168,18 @@ const enMessages: Messages = {
       `Connecting for introspection on ${database || '(no name)'}...`,
     introspectDone: (tables: number) => `Introspection finished. ${tables} tables found.`,
     introspectSavedAt: (dir: string) => `Introspection files saved at: ${dir}`,
+    schemaLimitSummary:
+      'Warning: the introspection found structures that require extra care during model and migration generation.',
+    tablesOverColumnLimit: (count: number) =>
+      `Tables with more than 32 columns found: ${count}.`,
+    tableOverColumnLimitItem: (tableName: string, columnCount: number) =>
+      `- Table ${tableName} with ${columnCount} columns.`,
+    indexesOverKeyColumnLimit: (count: number) =>
+      `Indexes with more than 32 key columns found: ${count}.`,
+    indexOverKeyColumnLimitItem: (tableName: string, indexName: string, keyColumnCount: number) =>
+      `- Index ${indexName} on table ${tableName} with ${keyColumnCount} key columns.`,
+    schemaLimitMetadataHint:
+      'Check the generated metadata.json file for the full list and detailed information.',
     exportDevMessage: 'Export feature under development.',
     migrateDevMessage: 'Migration feature under development.',
     initAlreadyExists: (path: string) =>
@@ -205,6 +239,18 @@ const esMessages: Messages = {
       `Conectando para introspección en ${database || '(sin nombre)'}...`,
     introspectDone: (tables: number) => `Introspección finalizada. ${tables} tablas encontradas.`,
     introspectSavedAt: (dir: string) => `Archivos de introspección guardados en: ${dir}`,
+    schemaLimitSummary:
+      'Advertencia: la introspección identificó estructuras que requieren cuidado adicional al generar modelos y migraciones.',
+    tablesOverColumnLimit: (count: number) =>
+      `Tablas con más de 32 columnas identificadas: ${count}.`,
+    tableOverColumnLimitItem: (tableName: string, columnCount: number) =>
+      `- Tabla ${tableName} con ${columnCount} columnas.`,
+    indexesOverKeyColumnLimit: (count: number) =>
+      `Índices con más de 32 columnas clave identificados: ${count}.`,
+    indexOverKeyColumnLimitItem: (tableName: string, indexName: string, keyColumnCount: number) =>
+      `- Índice ${indexName} en la tabla ${tableName} con ${keyColumnCount} columnas clave.`,
+    schemaLimitMetadataHint:
+      'Consulte el metadata.json generado para ver la lista completa y los detalles de estos casos.',
     exportDevMessage: 'Funcionalidad de exportación en desarrollo.',
     migrateDevMessage: 'Funcionalidad de migraciones en desarrollo.',
     initAlreadyExists: (path: string) =>

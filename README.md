@@ -33,6 +33,8 @@ These tests currently cover:
 
 - Sequelize migrations with long MSSQL string columns
 - TypeORM migrations with long MSSQL string columns
+- Sequelize migrations that omit invalid numeric defaults for MSSQL date/datetimeoffset columns
+- TypeORM migrations that preserve MSSQL date/datetimeoffset types and omit invalid numeric defaults
 - Real inserts of values longer than 4000 characters without parameter size errors
 
 Prerequisites:
@@ -46,7 +48,7 @@ Available scripts:
 # Run both MSSQL integration suites
 pnpm run test:integration:mssql
 
-# Run only Sequelize + MSSQL integration
+# Run only Sequelize + MSSQL integrations
 pnpm run test:integration:mssql:sequelize
 
 # Run only TypeORM + MSSQL integration
@@ -283,6 +285,8 @@ dbutility connect [connection-options]
 
 Introspect database schema.
 
+Displays warnings in the terminal when the schema contains tables with more than 32 columns or indexes with more than 32 key columns. The complete details are also saved in the generated `metadata.json`.
+
 ```bash
 dbutility introspect [connection-options]
 ```
@@ -290,6 +294,8 @@ dbutility introspect [connection-options]
 #### `models`
 
 Export models for target ORM.
+
+When the source schema contains wide tables or oversized index key lists, the CLI prints warnings before generating the files so you can review those cases early.
 
 ```bash
 dbutility models --target <orm> [options] [connection-options]
@@ -304,6 +310,8 @@ dbutility models --target <orm> [options] [connection-options]
 #### `migrations`
 
 Generate migrations from database schema.
+
+When the source schema contains wide tables or oversized index key lists, the CLI prints warnings before generating the files so you can review those cases early.
 
 ```bash
 dbutility migrations --target <orm> [options] [connection-options]

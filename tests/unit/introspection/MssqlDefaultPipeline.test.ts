@@ -47,6 +47,17 @@ describe('MSSQL Default Pipeline', () => {
           numeric_scale: null,
           is_identity: 0,
         },
+        {
+          table_name: 'GFORMULA',
+          column_name: 'DATAFECHAMENTOFACTOR',
+          data_type: 'datetimeoffset',
+          is_nullable: 'YES',
+          column_default: '((0))',
+          character_maximum_length: null,
+          numeric_precision: null,
+          numeric_scale: null,
+          is_identity: 0,
+        },
       ])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
@@ -57,6 +68,7 @@ describe('MSSQL Default Pipeline', () => {
           is_primary: true,
           column_name: 'INDSELECAO',
           key_ordinal: 1,
+          is_included_column: false,
         },
       ])
       .mockResolvedValueOnce([]),
@@ -71,6 +83,8 @@ describe('MSSQL Default Pipeline', () => {
     expect(migration.content).toContain('defaultValue: 0');
     expect(migration.content).toContain('defaultValue: Sequelize.literal("getdate()")');
     expect(migration.content).not.toContain('CREATE DEFAULT DEF_DLOGICONULL AS 0');
+    expect(migration.content).toContain('DATAFECHAMENTOFACTOR');
+    expect(migration.content).not.toContain('DATAFECHAMENTOFACTOR: {\n        type: Sequelize.DATE,\n        defaultValue: 0');
   });
 
   it('should normalize legacy MSSQL defaults before generating TypeORM migrations', async () => {
@@ -82,5 +96,9 @@ describe('MSSQL Default Pipeline', () => {
     expect(migration.content).toContain('default: 0');
     expect(migration.content).toContain('default: () => "getdate()"');
     expect(migration.content).not.toContain('CREATE DEFAULT DEF_DLOGICONULL AS 0');
+    expect(migration.content).toContain("name: 'DATAFECHAMENTOFACTOR'");
+    expect(migration.content).not.toContain(
+      "name: 'DATAFECHAMENTOFACTOR',\n      type: 'datetimeoffset',\n      default: 0",
+    );
   });
 });

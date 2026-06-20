@@ -37,6 +37,13 @@ describe('DefaultValueUtils', () => {
     });
   });
 
+  it('should treat numeric defaults on date columns as unsupported', () => {
+    expect(classifyDatabaseDefault('((0))', 'date')).toEqual({
+      kind: 'unsupported',
+      normalized: '0',
+    });
+  });
+
   it('should keep unsupported expressions as expressions', () => {
     expect(classifyDatabaseDefault('(newid())', 'string')).toEqual({
       kind: 'expression',

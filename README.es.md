@@ -33,6 +33,8 @@ Actualmente, estas pruebas cubren:
 
 - migraciones Sequelize con columnas de texto largas en MSSQL
 - migraciones TypeORM con columnas de texto largas en MSSQL
+- migraciones Sequelize que omiten defaults numéricos inválidos en columnas date/datetimeoffset de MSSQL
+- migraciones TypeORM que preservan tipos date/datetimeoffset de MSSQL y omiten defaults numéricos inválidos
 - inserciones reales de valores con mas de 4000 caracteres sin errores de tamano de parametro
 
 Prerequisitos:
@@ -46,7 +48,7 @@ Scripts disponibles:
 # Ejecuta las dos suites de integracion MSSQL
 pnpm run test:integration:mssql
 
-# Ejecuta solo la integracion Sequelize + MSSQL
+# Ejecuta solo las integraciones Sequelize + MSSQL
 pnpm run test:integration:mssql:sequelize
 
 # Ejecuta solo la integracion TypeORM + MSSQL
@@ -283,6 +285,8 @@ dbutility connect [opciones-conexión]
 
 Realiza introspección en el esquema de la base de datos.
 
+Muestra advertencias en la terminal cuando el schema contiene tablas con más de 32 columnas o índices con más de 32 columnas clave. Los detalles completos también se guardan en el `metadata.json` generado.
+
 ```bash
 dbutility introspect [opciones-conexión]
 ```
@@ -290,6 +294,8 @@ dbutility introspect [opciones-conexión]
 #### `models`
 
 Exporta modelos para el ORM objetivo.
+
+Cuando el schema de origen contiene tablas anchas o listas de claves de índice por encima del límite, la CLI muestra advertencias antes de generar los archivos para facilitar la revisión de estos casos.
 
 ```bash
 dbutility models --target <orm> [opciones] [opciones-conexión]
@@ -304,6 +310,8 @@ dbutility models --target <orm> [opciones] [opciones-conexión]
 #### `migrations`
 
 Genera migraciones a partir del esquema de la base de datos.
+
+Cuando el schema de origen contiene tablas anchas o listas de claves de índice por encima del límite, la CLI muestra advertencias antes de generar los archivos para facilitar la revisión de estos casos.
 
 ```bash
 dbutility migrations --target <orm> [opciones] [opciones-conexión]

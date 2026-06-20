@@ -102,6 +102,8 @@ export const ${className} = model<I${className}>('${className}', ${className}Sch
         return classification.value ? 'true' : 'false';
       case 'date_now':
         return 'Date.now';
+      case 'unsupported':
+        return null;
       case 'expression':
         return null;
     }

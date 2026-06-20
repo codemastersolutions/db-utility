@@ -249,8 +249,14 @@ export class ${migrationName} implements MigrationInterface {
 
     if (lower.includes('int')) return { type: 'int', tsType: 'number' };
     if (lower.includes('bool')) return { type: 'boolean', tsType: 'boolean' };
-    if (lower.includes('date') || lower.includes('time'))
-      return { type: 'timestamp', tsType: 'Date' };
+    if (lower.includes('datetimeoffset')) return { type: 'datetimeoffset', tsType: 'Date' };
+    if (lower.includes('datetime2')) return { type: 'datetime2', tsType: 'Date' };
+    if (lower.includes('smalldatetime')) return { type: 'smalldatetime', tsType: 'Date' };
+    if (lower === 'datetime') return { type: 'datetime', tsType: 'Date' };
+    if (lower === 'date') return { type: 'date', tsType: 'Date' };
+    if (lower === 'time') return { type: 'time', tsType: 'Date' };
+    if (lower.includes('timestamp')) return { type: 'timestamp', tsType: 'Date' };
+    if (lower.includes('date') || lower.includes('time')) return { type: lower, tsType: 'Date' };
     if (lower.includes('float') || lower.includes('double'))
       return { type: 'float', tsType: 'number' };
     if (lower.includes('decimal') || lower.includes('numeric'))
@@ -301,7 +307,10 @@ export class ${migrationName} implements MigrationInterface {
     if (col.isNullable) options.push('nullable: true');
     if (col.isUnique) options.push('unique: true');
     if (col.hasDefault && col.defaultValue !== null && col.defaultValue !== undefined) {
-      options.push(`default: ${this.formatTypeOrmDefaultValue(col)}`);
+      const defaultValue = this.formatTypeOrmDefaultValue(col);
+      if (defaultValue !== null) {
+        options.push(`default: ${defaultValue}`);
+      }
     }
 
     return `  ${decorator}({ ${options.join(', ')} })
@@ -319,7 +328,10 @@ export class ${migrationName} implements MigrationInterface {
     if (col.isUnique) parts.push('      isUnique: true');
     if (mappedType.length) parts.push(`      length: '${mappedType.length}'`);
     if (col.hasDefault && col.defaultValue !== null && col.defaultValue !== undefined) {
-      parts.push(`      default: ${this.formatTypeOrmDefaultValue(col)}`);
+      const defaultValue = this.formatTypeOrmDefaultValue(col);
+      if (defaultValue !== null) {
+        parts.push(`      default: ${defaultValue}`);
+      }
     }
 
     return `      {
@@ -327,7 +339,7 @@ ${parts.join(',\n')}
       }`;
   }
 
-  private formatTypeOrmDefaultValue(col: ColumnMetadata): string {
+  private formatTypeOrmDefaultValue(col: ColumnMetadata): string | null {
     const classification = classifyDatabaseDefault(
       col.defaultValue ?? '',
       inferDefaultLogicalType(col.dataType),
@@ -345,6 +357,8 @@ ${parts.join(',\n')}
       case 'date_now':
       case 'expression':
         return `() => ${JSON.stringify(classification.normalized)}`;
+      case 'unsupported':
+        return null;
     }
   }
 

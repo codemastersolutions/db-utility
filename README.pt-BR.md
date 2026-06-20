@@ -33,6 +33,8 @@ Atualmente, esses testes cobrem:
 
 - migrations Sequelize com colunas de string longa no MSSQL
 - migrations TypeORM com colunas de string longa no MSSQL
+- migrations Sequelize que omitem defaults numéricos inválidos em colunas de data/datetimeoffset no MSSQL
+- migrations TypeORM que preservam tipos de data/datetimeoffset do MSSQL e omitem defaults numéricos inválidos
 - inserções reais de valores com mais de 4000 caracteres sem erro de tamanho de parâmetro
 
 Pré-requisitos:
@@ -46,7 +48,7 @@ Scripts disponíveis:
 # Executa as duas suítes de integração MSSQL
 pnpm run test:integration:mssql
 
-# Executa apenas a integração Sequelize + MSSQL
+# Executa apenas as integrações Sequelize + MSSQL
 pnpm run test:integration:mssql:sequelize
 
 # Executa apenas a integração TypeORM + MSSQL
@@ -283,6 +285,8 @@ dbutility connect [opções-conexão]
 
 Faz introspecção no esquema do banco de dados.
 
+Exibe avisos no terminal quando o schema possui tabelas com mais de 32 colunas ou índices com mais de 32 colunas-chave. Os detalhes completos também ficam salvos no `metadata.json` gerado.
+
 ```bash
 dbutility introspect [opções-conexão]
 ```
@@ -290,6 +294,8 @@ dbutility introspect [opções-conexão]
 #### `models`
 
 Exporta modelos para o ORM alvo.
+
+Quando o schema de origem possui tabelas largas ou listas de chaves de índice acima do limite, a CLI exibe avisos antes de gerar os arquivos para facilitar a revisão desses casos.
 
 ```bash
 dbutility models --target <orm> [opções] [opções-conexão]
@@ -304,6 +310,8 @@ dbutility models --target <orm> [opções] [opções-conexão]
 #### `migrations`
 
 Gera migrações a partir do esquema do banco de dados.
+
+Quando o schema de origem possui tabelas largas ou listas de chaves de índice acima do limite, a CLI exibe avisos antes de gerar os arquivos para facilitar a revisão desses casos.
 
 ```bash
 dbutility migrations --target <orm> [opções] [opções-conexão]

@@ -455,7 +455,10 @@ module.exports = {
     if (!col.isNullable) parts.push('      allowNull: false');
     if (col.isUnique) parts.push('      unique: true');
     if (col.hasDefault && col.defaultValue !== null) {
-      parts.push(`      defaultValue: ${this.formatSequelizeDefaultValue(col)}`);
+      const defaultValue = this.formatSequelizeDefaultValue(col);
+      if (defaultValue !== null) {
+        parts.push(`      defaultValue: ${defaultValue}`);
+      }
     }
 
     return `      ${col.name}: {\n${parts.join(',\n')}\n      }`;
@@ -474,13 +477,16 @@ module.exports = {
     if (!col.isNullable) parts.push('        allowNull: false');
     if (col.isUnique) parts.push('        unique: true');
     if (col.hasDefault && col.defaultValue !== null && col.defaultValue !== undefined) {
-      parts.push(`        defaultValue: ${this.formatSequelizeDefaultValue(col)}`);
+      const defaultValue = this.formatSequelizeDefaultValue(col);
+      if (defaultValue !== null) {
+        parts.push(`        defaultValue: ${defaultValue}`);
+      }
     }
 
     return `      ${col.name}: {\n${parts.join(',\n')}\n      }`;
   }
 
-  private formatSequelizeDefaultValue(col: ColumnMetadata): string {
+  private formatSequelizeDefaultValue(col: ColumnMetadata): string | null {
     const classification = classifyDatabaseDefault(
       col.defaultValue ?? '',
       inferDefaultLogicalType(col.dataType),
@@ -498,6 +504,8 @@ module.exports = {
       case 'date_now':
       case 'expression':
         return `Sequelize.literal(${JSON.stringify(classification.normalized)})`;
+      case 'unsupported':
+        return null;
     }
   }
 

@@ -124,6 +124,8 @@ export class PrismaGenerator implements SchemaGenerator {
         return `@default(${classification.value ? 'true' : 'false'})`;
       case 'date_now':
         return '@default(now())';
+      case 'unsupported':
+        return null;
       case 'expression':
         return null;
     }

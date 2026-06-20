@@ -6,6 +6,7 @@ export type ClassifiedDefaultValue =
   | { kind: 'number'; normalized: string; value: string }
   | { kind: 'boolean'; normalized: string; value: boolean }
   | { kind: 'date_now'; normalized: string }
+  | { kind: 'unsupported'; normalized: string }
   | { kind: 'expression'; normalized: string };
 
 export function normalizeDatabaseDefault(defaultValue: string): string {
@@ -36,6 +37,10 @@ export function classifyDatabaseDefault(
   }
 
   if (/^[+-]?\d+(\.\d+)?$/.test(normalized)) {
+    if (logicalType === 'date') {
+      return { kind: 'unsupported', normalized };
+    }
+
     if (logicalType === 'boolean') {
       return { kind: 'boolean', normalized, value: normalized !== '0' };
     }

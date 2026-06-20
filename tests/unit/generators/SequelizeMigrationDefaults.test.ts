@@ -122,4 +122,35 @@ describe('Sequelize Migration Defaults', () => {
 
     expect(migration.content).toContain('defaultValue: "guest"');
   });
+
+  it('should omit invalid numeric defaults for date columns', async () => {
+    const schema: DatabaseSchema = {
+      tables: [
+        {
+          name: 'Teste',
+          columns: [
+            {
+              name: 'DATAFECHAMENTOFACTOR',
+              dataType: 'datetimeoffset',
+              isPrimaryKey: false,
+              isAutoIncrement: false,
+              isNullable: true,
+              hasDefault: true,
+              defaultValue: '((0))',
+              isUnique: false,
+            },
+          ],
+          indexes: [],
+          foreignKeys: [],
+        },
+      ],
+    };
+
+    const generator = new SequelizeGenerator();
+    const [migration] = await generator.generateMigrations(schema);
+
+    expect(migration.content).toContain('type: Sequelize.DATE');
+    expect(migration.content).not.toContain('defaultValue: 0');
+    expect(migration.content).not.toContain('DATAFECHAMENTOFACTOR: {\n        type: Sequelize.DATE,\n        defaultValue');
+  });
 });

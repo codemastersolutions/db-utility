@@ -22,9 +22,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:integration:mssql": "cross-env DBUTILITY_RUN_DOCKER_INTEGRATION=1 vitest run tests/integration/testing/SequelizeMssqlLongString.test.ts tests/integration/testing/TypeormMssqlLongString.test.ts",
-    "test:integration:mssql:sequelize": "cross-env DBUTILITY_RUN_DOCKER_INTEGRATION=1 vitest run tests/integration/testing/SequelizeMssqlLongString.test.ts",
-    "test:integration:mssql:typeorm": "cross-env DBUTILITY_RUN_DOCKER_INTEGRATION=1 vitest run tests/integration/testing/TypeormMssqlLongString.test.ts",
+    "test:integration:mssql": "cross-env DBUTILITY_RUN_DOCKER_INTEGRATION=1 vitest run tests/integration/testing/SequelizeMssqlLongString.test.ts tests/integration/testing/SequelizeMssqlDateDefault.test.ts tests/integration/testing/TypeormMssqlLongString.test.ts tests/integration/testing/TypeormMssqlDateDefault.test.ts",
+    "test:integration:mssql:sequelize": "cross-env DBUTILITY_RUN_DOCKER_INTEGRATION=1 vitest run tests/integration/testing/SequelizeMssqlLongString.test.ts tests/integration/testing/SequelizeMssqlDateDefault.test.ts",
+    "test:integration:mssql:typeorm": "cross-env DBUTILITY_RUN_DOCKER_INTEGRATION=1 vitest run tests/integration/testing/TypeormMssqlLongString.test.ts tests/integration/testing/TypeormMssqlDateDefault.test.ts",
     "lint": "eslint 'src/**/*.ts'",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
     "prepublishOnly": "pnpm run build"

@@ -49,6 +49,17 @@ describe('MSSQL Model Pipeline', () => {
           numeric_scale: null,
           is_identity: 0,
         },
+        {
+          table_name: 'GFORMULA',
+          column_name: 'DATAFECHAMENTOFACTOR',
+          data_type: 'datetimeoffset',
+          is_nullable: 'YES',
+          column_default: '((0))',
+          character_maximum_length: null,
+          numeric_precision: null,
+          numeric_scale: null,
+          is_identity: 0,
+        },
       ])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
@@ -65,6 +76,8 @@ describe('MSSQL Model Pipeline', () => {
     expect(model.content).toContain('defaultValue: "guest"');
     expect(model.content).toContain('defaultValue: Sequelize.literal("getdate()")');
     expect(model.content).not.toContain('CREATE DEFAULT DEF_DLOGICONULL AS 0');
+    expect(model.content).toContain('DATAFECHAMENTOFACTOR');
+    expect(model.content).not.toContain('DATAFECHAMENTOFACTOR: {\n      type: DataTypes.DATE,\n      defaultValue: 0');
   });
 
   it('should normalize legacy MSSQL defaults before generating TypeORM models', async () => {
@@ -77,6 +90,12 @@ describe('MSSQL Model Pipeline', () => {
     expect(model.content).toContain('default: "guest"');
     expect(model.content).toContain('default: () => "getdate()"');
     expect(model.content).not.toContain('CREATE DEFAULT DEF_DLOGICONULL AS 0');
+    expect(model.content).toContain(
+      "@Column({ type: 'datetimeoffset', nullable: true })\n  DATAFECHAMENTOFACTOR?: Date;",
+    );
+    expect(model.content).not.toContain(
+      "@Column({ type: 'datetimeoffset', nullable: true, default: 0 })\n  DATAFECHAMENTOFACTOR?: Date;",
+    );
   });
 
   it('should normalize legacy MSSQL defaults before generating Mongoose models', async () => {
@@ -89,6 +108,10 @@ describe('MSSQL Model Pipeline', () => {
     expect(model.content).toContain('default: "guest"');
     expect(model.content).toContain('default: Date.now');
     expect(model.content).not.toContain('CREATE DEFAULT DEF_DLOGICONULL AS 0');
+    expect(model.content).toContain('DATAFECHAMENTOFACTOR: {\n    type: Date\n  }');
+    expect(model.content).not.toContain(
+      'DATAFECHAMENTOFACTOR: {\n    type: Date,\n    default: 0\n  }',
+    );
   });
 
   it('should normalize legacy MSSQL defaults before generating Prisma models', async () => {
@@ -101,5 +124,7 @@ describe('MSSQL Model Pipeline', () => {
     expect(model.content).toContain('NOME String @default("guest")');
     expect(model.content).toContain('CRIADOEM DateTime? @default(now())');
     expect(model.content).not.toContain('CREATE DEFAULT DEF_DLOGICONULL AS 0');
+    expect(model.content).toContain('DATAFECHAMENTOFACTOR DateTime?');
+    expect(model.content).not.toContain('DATAFECHAMENTOFACTOR DateTime? @default(0)');
   });
 });
