@@ -117,6 +117,8 @@ describe('Sequelize Foreign Keys', () => {
     const fkMigration = migrations.find((migration) => migration.fileName.includes('add-fks'));
 
     expect(fkMigration?.content).toContain("field: 'CODCONTRATOSTATUS'");
-    expect(fkMigration?.content).not.toContain("fields: ['CODCONTRATOSTATUS']");
+    expect(fkMigration?.content).not.toContain(
+      "references: {\n          table: 'XXCONTRATOSTATUS',\n          fields:",
+    );
   });
 });

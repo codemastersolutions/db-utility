@@ -246,6 +246,17 @@ describe('MssqlIntrospector', () => {
         ])
         .mockResolvedValueOnce([
           {
+            table_name: 'FCFO',
+            column_name: 'CODCOLIGADA',
+          },
+          {
+            table_name: 'FCFO',
+            column_name: 'CODCFO',
+          },
+        ])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          {
             constraint_name: 'FKXXCONTRATO_FCFO',
             table_name: 'XXCONTRATO',
             column_name: 'CODCOLIGADACONTRATADA',
@@ -263,9 +274,7 @@ describe('MssqlIntrospector', () => {
             update_rule: 'NO ACTION',
             delete_rule: 'NO ACTION',
           },
-        ])
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([]),
+        ]),
     };
 
     const introspector = new MssqlIntrospector(connector);

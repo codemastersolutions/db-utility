@@ -83,22 +83,20 @@ describe('MSSQL Foreign Key Pipeline', () => {
         ])
         .mockResolvedValueOnce([
           {
-            constraint_name: 'FKXXCONTRATO_FCFO',
-            table_name: 'XXCONTRATO',
-            column_name: 'CODCOLIGADACONTRATADA',
-            referenced_table_name: 'FCFO',
-            referenced_column_name: 'CODCOLIGADA',
-            update_rule: 'NO ACTION',
-            delete_rule: 'NO ACTION',
+            table_name: 'FCFO',
+            column_name: 'CODCOLIGADA',
           },
           {
-            constraint_name: 'FKXXCONTRATO_FCFO',
+            table_name: 'FCFO',
+            column_name: 'CODCFO',
+          },
+          {
             table_name: 'XXCONTRATO',
-            column_name: 'CODCONTRATADA',
-            referenced_table_name: 'FCFO',
-            referenced_column_name: 'CODCFO',
-            update_rule: 'NO ACTION',
-            delete_rule: 'NO ACTION',
+            column_name: 'CODCOLIGADA',
+          },
+          {
+            table_name: 'XXCONTRATO',
+            column_name: 'NUMCONTRATO',
           },
         ])
         .mockResolvedValueOnce([
@@ -139,7 +137,26 @@ describe('MSSQL Foreign Key Pipeline', () => {
             is_included_column: false,
           },
         ])
-        .mockResolvedValueOnce([]),
+        .mockResolvedValueOnce([
+          {
+            constraint_name: 'FKXXCONTRATO_FCFO',
+            table_name: 'XXCONTRATO',
+            column_name: 'CODCOLIGADACONTRATADA',
+            referenced_table_name: 'FCFO',
+            referenced_column_name: 'CODCOLIGADA',
+            update_rule: 'NO ACTION',
+            delete_rule: 'NO ACTION',
+          },
+          {
+            constraint_name: 'FKXXCONTRATO_FCFO',
+            table_name: 'XXCONTRATO',
+            column_name: 'CODCONTRATADA',
+            referenced_table_name: 'FCFO',
+            referenced_column_name: 'CODCFO',
+            update_rule: 'NO ACTION',
+            delete_rule: 'NO ACTION',
+          },
+        ]),
     };
 
     const service = new IntrospectionService(connector, { type: 'mssql' });
