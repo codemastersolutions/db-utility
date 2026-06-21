@@ -34,6 +34,9 @@ These tests currently cover:
 - Sequelize migrations with long MSSQL string columns
 - TypeORM migrations with long MSSQL string columns
 - Sequelize migrations that omit invalid numeric defaults for MSSQL date/datetimeoffset columns
+- Sequelize migrations that preserve composite foreign keys with matching referenced columns
+- Sequelize migrations that preserve self-referencing composite foreign keys
+- Sequelize migrations that preserve composite foreign keys with `ON DELETE SET NULL`
 - TypeORM migrations that preserve MSSQL date/datetimeoffset types and omit invalid numeric defaults
 - Real inserts of values longer than 4000 characters without parameter size errors
 

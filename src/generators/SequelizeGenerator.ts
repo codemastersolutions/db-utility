@@ -147,7 +147,7 @@ module.exports = {
         name: '${fk.name}',
         references: {
           table: '${fk.referencedTable}',
-          field: '${fk.referencedColumns[0]}'
+          ${this.generateForeignKeyReference(fk.referencedColumns)}
         },
         onDelete: '${fk.deleteRule?.toLowerCase() || 'no action'}',
         onUpdate: '${fk.updateRule?.toLowerCase() || 'no action'}'
@@ -270,6 +270,14 @@ module.exports = {
     }
 
     return files;
+  }
+
+  private generateForeignKeyReference(referencedColumns: string[]): string {
+    if (referencedColumns.length <= 1) {
+      return `field: '${referencedColumns[0]}'`;
+    }
+
+    return `fields: ['${referencedColumns.join("','")}']`;
   }
 
   async generateDataMigrations(data: TableData[]): Promise<GeneratedFile[]> {

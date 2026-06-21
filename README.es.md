@@ -34,6 +34,9 @@ Actualmente, estas pruebas cubren:
 - migraciones Sequelize con columnas de texto largas en MSSQL
 - migraciones TypeORM con columnas de texto largas en MSSQL
 - migraciones Sequelize que omiten defaults numéricos inválidos en columnas date/datetimeoffset de MSSQL
+- migraciones Sequelize que preservan claves foráneas compuestas con columnas referenciadas coincidentes
+- migraciones Sequelize que preservan auto-relaciones con claves foráneas compuestas
+- migraciones Sequelize que preservan claves foráneas compuestas con `ON DELETE SET NULL`
 - migraciones TypeORM que preservan tipos date/datetimeoffset de MSSQL y omiten defaults numéricos inválidos
 - inserciones reales de valores con mas de 4000 caracteres sin errores de tamano de parametro
 
