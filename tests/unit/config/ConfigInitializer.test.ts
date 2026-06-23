@@ -23,7 +23,11 @@ describe('ConfigInitializer', () => {
 
     expect(parsed.language).toBe('pt-BR');
     expect(parsed.introspection).toBeUndefined();
-    expect(parsed.migrations).toBeUndefined();
+    expect(parsed.migrations).toEqual({
+      outputDir: 'db-utility-migrations',
+      fileNamePattern: 'timestamp-prefix',
+      disableForeignKeys: false,
+    });
   });
 
   it('não deve recriar arquivo quando já existe e force = false', () => {
