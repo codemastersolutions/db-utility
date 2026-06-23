@@ -30,6 +30,16 @@ describe('CLI Helpers - resolveMigrationOutputDir', () => {
     expect(result).toBe(join(cwd, 'config-migrations'));
   });
 
+  it('deve preservar outputDir absoluto vindo do arquivo de configuração', () => {
+    const absoluteOutputDir = '/tmp/dbutility-migrations';
+    const result = resolveMigrationOutputDir(cwd, undefined, {
+      ...mockAppConfig,
+      migrations: { outputDir: absoluteOutputDir, fileNamePattern: 'timestamp-prefix' },
+    });
+
+    expect(result).toBe(absoluteOutputDir);
+  });
+
   it('deve usar o fallback hardcoded se não houver CLI nem AppConfig migration dir', () => {
     // Simulando um AppConfig vazio ou sem migrations (embora o loader garanta defaults, é bom testar o fallback da função)
     const emptyConfig = { ...mockAppConfig, migrations: undefined } as unknown as AppConfig;

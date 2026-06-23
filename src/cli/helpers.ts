@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import {
   AppConfig,
   MigrationConfig,
@@ -40,7 +40,9 @@ export const resolveMigrationOutputDir = (
   const migrationConfig = getMigrationConfig(source);
 
   if (migrationConfig.outputDir) {
-    return join(cwd, migrationConfig.outputDir);
+    return isAbsolute(migrationConfig.outputDir)
+      ? migrationConfig.outputDir
+      : join(cwd, migrationConfig.outputDir);
   }
 
   return join(cwd, 'exports', 'migrations');

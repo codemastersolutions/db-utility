@@ -1,5 +1,5 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { AppConfig } from '../config/AppConfig';
 import { DatabaseConfig } from '../types/database';
 import { DatabaseSchema } from '../types/introspection';
@@ -13,7 +13,7 @@ export class IntrospectionLogger {
     appConfig?: AppConfig,
   ): string {
     const rootDirName = appConfig ? appConfig.introspection.outputDir : 'db-utility-introspect';
-    const rootDir = join(baseDir, rootDirName);
+    const rootDir = isAbsolute(rootDirName) ? rootDirName : join(baseDir, rootDirName);
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const dirName = `run-${timestamp}`;
     const runDir = join(rootDir, dirName);

@@ -123,4 +123,31 @@ describe('IntrospectionLogger', () => {
       keyColumnCount: 33,
     });
   });
+
+  it('deve preservar outputDir absoluto na introspecção', () => {
+    const isolatedBaseDir = mkdtempSync(join(baseTempDir, 'absolute-introspect-'));
+    const absoluteOutputDir = mkdtempSync(join(baseTempDir, 'absolute-target-'));
+    const config: DatabaseConfig = {
+      type: 'postgres',
+      host: 'localhost',
+      port: 5432,
+      database: 'dbutility_test',
+    };
+    const schema: DatabaseSchema = {
+      tables: [],
+    };
+
+    const runDir = IntrospectionLogger.logSchema(config, schema, isolatedBaseDir, {
+      language: 'pt-BR',
+      introspection: {
+        outputDir: absoluteOutputDir,
+      },
+      migrations: {
+        outputDir: 'migrations-out',
+        fileNamePattern: 'timestamp-prefix',
+      },
+    });
+
+    expect(runDir.startsWith(absoluteOutputDir)).toBe(true);
+  });
 });

@@ -96,6 +96,8 @@ dbutility --init --force
 
 El archivo de configuración permite definir el idioma de la CLI, directorios de salida, patrones de nombres y configuraciones de conexión a la base de datos.
 
+Los campos `introspection.outputDir` y `migrations.outputDir` aceptan rutas relativas o absolutas.
+
 ```json
 {
   "language": "es",
@@ -387,16 +389,16 @@ Cuando el schema de origen contiene tablas anchas o listas de claves de índice 
 dbutility migrations --target <orm> [opciones] [opciones-conexión]
 ```
 
-| Flag                | Descripción                                                                              | Obligatorio                                                    |
-| ------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `--target <target>` | ORM objetivo (`sequelize`, `typeorm`)                                                    | Sí                                                             |
-| `--output <dir>`    | Directorio de salida                                                                     | No                                                             |
-| `--data`            | Genera migración de datos (seeds) junto con el esquema (Sobrescribe configuración)       | No                                                             |
-| `--only-data`       | Genera SOLO migración de datos                                                           | No                                                             |
-| `--backup`          | Exporta un backup de la base de datos después de la ejecución automática de pruebas      | No                                                             |
-| `--disable-foreign-keys` | Deshabilita la generación de archivos de migración de foreign keys (`add-fks-*`) | No                                                             |
-| `--tables <tables>` | Lista de tablas separadas por coma para exportación de datos (Sobrescribe configuración) | Sí (si `--data` o `--only-data` y no está en la configuración) |
-| `--test`            | Ejecuta el comando test después de la generación de migraciones                          | No                                                             |
+| Flag                     | Descripción                                                                              | Obligatorio                                                    |
+| ------------------------ | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `--target <target>`      | ORM objetivo (`sequelize`, `typeorm`)                                                    | Sí                                                             |
+| `--output <dir>`         | Directorio de salida                                                                     | No                                                             |
+| `--data`                 | Genera migración de datos (seeds) junto con el esquema (Sobrescribe configuración)       | No                                                             |
+| `--only-data`            | Genera SOLO migración de datos                                                           | No                                                             |
+| `--backup`               | Exporta un backup de la base de datos después de la ejecución automática de pruebas      | No                                                             |
+| `--disable-foreign-keys` | Deshabilita la generación de archivos de migración de foreign keys (`add-fks-*`)         | No                                                             |
+| `--tables <tables>`      | Lista de tablas separadas por coma para exportación de datos (Sobrescribe configuración) | Sí (si `--data` o `--only-data` y no está en la configuración) |
+| `--test`                 | Ejecuta el comando test después de la generación de migraciones                          | No                                                             |
 
 Prioridad para `disableForeignKeys`: flag `--disable-foreign-keys` > `dbutility.config.json` > `.env`. Predeterminado: `false`.
 Prioridad para `backup`: flag `--backup` > `dbutility.config.json` > `.env`. Predeterminado: `false`.

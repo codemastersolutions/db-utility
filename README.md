@@ -96,6 +96,8 @@ dbutility --init --force
 
 The configuration file allows you to define CLI language, output directories, naming patterns, and database connection settings.
 
+The `introspection.outputDir` and `migrations.outputDir` fields accept both relative and absolute paths.
+
 ```json
 {
   "language": "en",
