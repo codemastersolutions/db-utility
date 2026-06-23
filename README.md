@@ -342,11 +342,14 @@ dbutility migrations --target <orm> [options] [connection-options]
 | `--output <dir>`    | Output directory                                                     | No                                                   |
 | `--data`            | Generate data migration (seeds) along with schema (Overrides config) | No                                                   |
 | `--only-data`       | Generate ONLY data migrations                                        | No                                                   |
+| `--backup`          | Export a database backup after the automatic migration test run      | No                                                   |
 | `--disable-foreign-keys` | Disable generation of foreign key migration files (`add-fks-*`) | No                                                   |
 | `--tables <tables>` | Comma-separated list of tables for data export (Overrides config)    | Yes (if `--data` or `--only-data` and not in config) |
 | `--test`            | Run test command after migration generation                          | No                                                   |
 
 Priority for `disableForeignKeys`: CLI flag `--disable-foreign-keys` > `dbutility.config.json` > `.env`. Default: `false`.
+Priority for `backup`: CLI flag `--backup` > `dbutility.config.json` > `.env`. Default: `false`.
+When `backup` is enabled by CLI flag, configuration file, or environment variable, the migration command automatically runs tests even without `--test`.
 
 #### `test`
 

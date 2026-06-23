@@ -342,11 +342,14 @@ dbutility migrations --target <orm> [opções] [opções-conexão]
 | `--output <dir>`    | Diretório de saída                                                                         | Não                                                              |
 | `--data`            | Gera migração de dados (seeds) junto com o esquema (Sobrescreve configuração)              | Não                                                              |
 | `--only-data`       | Gera APENAS migração de dados                                                              | Não                                                              |
+| `--backup`          | Exporta backup do banco após a execução automática dos testes das migrações                | Não                                                              |
 | `--disable-foreign-keys` | Desabilita a geração de arquivos de migration de foreign keys (`add-fks-*`)         | Não                                                              |
 | `--tables <tables>` | Lista de tabelas separadas por vírgula para exportação de dados (Sobrescreve configuração) | Sim (se `--data` ou `--only-data` e não estiver na configuração) |
 | `--test`            | Executa o comando test após a geração das migrações                                        | Não                                                              |
 
 Prioridade para `disableForeignKeys`: flag `--disable-foreign-keys` > `dbutility.config.json` > `.env`. Padrão: `false`.
+Prioridade para `backup`: flag `--backup` > `dbutility.config.json` > `.env`. Padrão: `false`.
+Quando `backup` estiver habilitado por flag, arquivo de configuração ou variável de ambiente, o comando de migrations executa os testes automaticamente mesmo sem `--test`.
 
 #### `test`
 

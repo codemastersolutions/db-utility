@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import {
   buildIntrospectionWarnings,
   resolveDisableForeignKeys,
+  resolveMigrationBackup,
   resolveMigrationOutputDir,
+  resolveShouldRunMigrationTests,
 } from '../../../src/cli/helpers';
 import { AppConfig } from '../../../src/config/AppConfig';
 import { DatabaseSchema } from '../../../src/types/introspection';
@@ -149,5 +151,55 @@ describe('CLI Helpers - resolveDisableForeignKeys', () => {
     const result = resolveDisableForeignKeys(undefined, baseConfig);
 
     expect(result).toBe(false);
+  });
+});
+
+describe('CLI Helpers - resolveMigrationBackup', () => {
+  const baseConfig: AppConfig = {
+    language: 'en',
+    introspection: { outputDir: 'intro' },
+    migrations: {
+      outputDir: 'migrations',
+      fileNamePattern: 'timestamp-prefix',
+      backup: false,
+    },
+  };
+
+  it('deve priorizar a flag --backup da CLI quando habilitada', () => {
+    const result = resolveMigrationBackup(true, baseConfig);
+
+    expect(result).toBe(true);
+  });
+
+  it('deve usar o backup do arquivo de configuração quando a flag não for informada', () => {
+    const result = resolveMigrationBackup(undefined, {
+      ...baseConfig,
+      migrations: {
+        ...baseConfig.migrations,
+        backup: true,
+      },
+    });
+
+    expect(result).toBe(true);
+  });
+
+  it('deve retornar false por padrão quando nada for configurado', () => {
+    const result = resolveMigrationBackup(undefined, baseConfig);
+
+    expect(result).toBe(false);
+  });
+});
+
+describe('CLI Helpers - resolveShouldRunMigrationTests', () => {
+  it('deve executar testes quando a flag --test for informada', () => {
+    expect(resolveShouldRunMigrationTests(true, false)).toBe(true);
+  });
+
+  it('deve executar testes automaticamente quando backup estiver habilitado', () => {
+    expect(resolveShouldRunMigrationTests(undefined, true)).toBe(true);
+  });
+
+  it('não deve executar testes quando nem --test nem backup estiverem habilitados', () => {
+    expect(resolveShouldRunMigrationTests(undefined, false)).toBe(false);
   });
 });

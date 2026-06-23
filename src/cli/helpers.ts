@@ -30,6 +30,28 @@ export const resolveDisableForeignKeys = (
   return appConfig.migrations.disableForeignKeys ?? false;
 };
 
+export const resolveMigrationBackup = (
+  cliBackup: boolean | undefined,
+  appConfig: AppConfig,
+): boolean => {
+  if (cliBackup === true) {
+    return true;
+  }
+
+  return appConfig.migrations.backup ?? false;
+};
+
+export const resolveShouldRunMigrationTests = (
+  cliTest: boolean | undefined,
+  backupEnabled: boolean,
+): boolean => {
+  if (cliTest === true) {
+    return true;
+  }
+
+  return backupEnabled;
+};
+
 export interface IntrospectionWarningMessages {
   schemaLimitSummary: string;
   tablesOverColumnLimit: (count: number) => string;

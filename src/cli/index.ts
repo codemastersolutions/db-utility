@@ -33,8 +33,10 @@ const messages = getMessages(appConfig.language);
 import { VersionChecker } from './VersionChecker';
 import {
   buildIntrospectionWarnings,
+  resolveMigrationBackup,
   resolveDisableForeignKeys,
   resolveMigrationOutputDir,
+  resolveShouldRunMigrationTests,
 } from './helpers';
 
 const getPackageVersion = (): string => {
@@ -150,6 +152,7 @@ interface CliOptions {
   tables?: string;
   onlyData?: boolean;
   test?: boolean;
+  backup?: boolean;
   disableForeignKeys?: boolean;
 }
 
@@ -327,6 +330,7 @@ addConnectionOptions(migrateCommand)
   .option('--output <dir>', 'Output directory')
   .option('--data', 'Generate data migration')
   .option('--only-data', 'Generate only data migration')
+  .option('--backup', 'Export database backup from container after automatic test execution')
   .option('--disable-foreign-keys', 'Disable foreign key migration generation')
   .option('--tables <tables>', 'Comma separated list of tables to export data from')
   .option('--test', 'Run tests after migration')
@@ -336,6 +340,9 @@ addConnectionOptions(migrateCommand)
       handleCliError(new Error('Target is required (use --target or config.target)'));
       return;
     }
+
+    const backupEnabled = resolveMigrationBackup(options.backup, appConfig);
+    const shouldRunTests = resolveShouldRunMigrationTests(options.test, backupEnabled);
 
     await withConnection(options, async (connector, config) => {
       console.log(messages.cli.introspectConnecting(config.database));
@@ -454,7 +461,7 @@ addConnectionOptions(migrateCommand)
       }
     });
 
-    if (options.test) {
+    if (shouldRunTests) {
       const baseOutputDir = resolveMigrationOutputDir(process.cwd(), options.output, appConfig);
       const outputDir = join(baseOutputDir, target.toLowerCase());
 
@@ -463,6 +470,7 @@ addConnectionOptions(migrateCommand)
         await runTest({
           target,
           dir: outputDir,
+          backup: backupEnabled,
         });
       } catch (error) {
         handleCliError(error);
