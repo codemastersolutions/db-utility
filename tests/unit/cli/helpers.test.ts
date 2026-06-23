@@ -2,12 +2,14 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   buildIntrospectionWarnings,
+  getMigrationConfigs,
   resolveDisableForeignKeys,
   resolveMigrationBackup,
+  resolveMigrationConnectionName,
   resolveMigrationOutputDir,
   resolveShouldRunMigrationTests,
 } from '../../../src/cli/helpers';
-import { AppConfig } from '../../../src/config/AppConfig';
+import { AppConfig, MigrationConfig } from '../../../src/config/AppConfig';
 import { DatabaseSchema } from '../../../src/types/introspection';
 
 describe('CLI Helpers - resolveMigrationOutputDir', () => {
@@ -113,21 +115,22 @@ describe('CLI Helpers - buildIntrospectionWarnings', () => {
 });
 
 describe('CLI Helpers - resolveDisableForeignKeys', () => {
+  const baseMigrationConfig: MigrationConfig = {
+    outputDir: 'migrations',
+    fileNamePattern: 'timestamp-prefix',
+    disableForeignKeys: false,
+  };
   const baseConfig: AppConfig = {
     language: 'en',
     introspection: { outputDir: 'intro' },
-    migrations: {
-      outputDir: 'migrations',
-      fileNamePattern: 'timestamp-prefix',
-      disableForeignKeys: false,
-    },
+    migrations: baseMigrationConfig,
   };
 
   it('deve priorizar a flag da CLI quando habilitada', () => {
     const result = resolveDisableForeignKeys(true, {
       ...baseConfig,
       migrations: {
-        ...baseConfig.migrations,
+        ...baseMigrationConfig,
         disableForeignKeys: false,
       },
     });
@@ -139,7 +142,7 @@ describe('CLI Helpers - resolveDisableForeignKeys', () => {
     const result = resolveDisableForeignKeys(undefined, {
       ...baseConfig,
       migrations: {
-        ...baseConfig.migrations,
+        ...baseMigrationConfig,
         disableForeignKeys: true,
       },
     });
@@ -155,14 +158,15 @@ describe('CLI Helpers - resolveDisableForeignKeys', () => {
 });
 
 describe('CLI Helpers - resolveMigrationBackup', () => {
+  const baseMigrationConfig: MigrationConfig = {
+    outputDir: 'migrations',
+    fileNamePattern: 'timestamp-prefix',
+    backup: false,
+  };
   const baseConfig: AppConfig = {
     language: 'en',
     introspection: { outputDir: 'intro' },
-    migrations: {
-      outputDir: 'migrations',
-      fileNamePattern: 'timestamp-prefix',
-      backup: false,
-    },
+    migrations: baseMigrationConfig,
   };
 
   it('deve priorizar a flag --backup da CLI quando habilitada', () => {
@@ -175,7 +179,7 @@ describe('CLI Helpers - resolveMigrationBackup', () => {
     const result = resolveMigrationBackup(undefined, {
       ...baseConfig,
       migrations: {
-        ...baseConfig.migrations,
+        ...baseMigrationConfig,
         backup: true,
       },
     });
@@ -187,6 +191,66 @@ describe('CLI Helpers - resolveMigrationBackup', () => {
     const result = resolveMigrationBackup(undefined, baseConfig);
 
     expect(result).toBe(false);
+  });
+});
+
+describe('CLI Helpers - getMigrationConfigs', () => {
+  it('deve retornar um array mesmo quando migrations for um objeto único', () => {
+    const config: AppConfig = {
+      language: 'en',
+      introspection: { outputDir: 'intro' },
+      migrations: {
+        outputDir: 'migrations',
+        fileNamePattern: 'timestamp-prefix',
+      },
+    };
+
+    expect(getMigrationConfigs(config)).toHaveLength(1);
+  });
+
+  it('deve preservar todos os itens quando migrations for um array', () => {
+    const config: AppConfig = {
+      language: 'en',
+      introspection: { outputDir: 'intro' },
+      migrations: [
+        {
+          outputDir: 'migrations/a',
+          fileNamePattern: 'timestamp-prefix',
+          connectionName: 'first',
+        },
+        {
+          outputDir: 'migrations/b',
+          fileNamePattern: 'prefix-timestamp',
+          connectionName: 'second',
+        },
+      ],
+    };
+
+    expect(getMigrationConfigs(config)).toEqual(config.migrations);
+  });
+});
+
+describe('CLI Helpers - resolveMigrationConnectionName', () => {
+  it('deve priorizar a conexão informada via CLI', () => {
+    const migrationConfig: MigrationConfig = {
+      outputDir: 'migrations',
+      fileNamePattern: 'timestamp-prefix',
+      connectionName: 'file-connection',
+    };
+
+    expect(resolveMigrationConnectionName('cli-connection', migrationConfig)).toBe(
+      'cli-connection',
+    );
+  });
+
+  it('deve usar a conexão do item de migration quando a CLI não informar uma conexão', () => {
+    const migrationConfig: MigrationConfig = {
+      outputDir: 'migrations',
+      fileNamePattern: 'timestamp-prefix',
+      connectionName: 'file-connection',
+    };
+
+    expect(resolveMigrationConnectionName(undefined, migrationConfig)).toBe('file-connection');
   });
 });
 

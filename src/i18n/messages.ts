@@ -55,6 +55,7 @@ export interface CliMessages {
   configDbTypeRequired: string;
   configDbConnectTimeoutInvalid: (value: string) => string;
   connectionConfigNotFound: (name: string) => string;
+  migrationSkippedConnectionNotFound: (name: string, index: number) => string;
   connectionFailed: string;
 }
 
@@ -134,6 +135,8 @@ const ptBrMessages: Messages = {
       `Timeout de conexão inválido: ${value}. Use um inteiro em ms entre 1 e 600000.`,
     connectionConfigNotFound: (name: string) =>
       `Conexão "${name}" não encontrada no arquivo de configuração.`,
+    migrationSkippedConnectionNotFound: (name: string, index: number) =>
+      `Item de migration ${index} ignorado: a conexão "${name}" não foi encontrada em "connections".`,
     connectionFailed: 'Conexão não estabelecida',
   },
 };
@@ -205,6 +208,8 @@ const enMessages: Messages = {
       `Invalid connection timeout: ${value}. Use an integer in ms between 1 and 600000.`,
     connectionConfigNotFound: (name: string) =>
       `Connection "${name}" not found in configuration file.`,
+    migrationSkippedConnectionNotFound: (name: string, index: number) =>
+      `Migration item ${index} was skipped because connection "${name}" was not found in "connections".`,
     connectionFailed: 'Connection not established',
   },
 };
@@ -282,6 +287,8 @@ const esMessages: Messages = {
       `Timeout de conexión inválido: ${value}. Use un entero en ms entre 1 y 600000.`,
     connectionConfigNotFound: (name: string) =>
       `Conexión "${name}" no encontrada en el archivo de configuración.`,
+    migrationSkippedConnectionNotFound: (name: string, index: number) =>
+      `El elemento de migración ${index} fue omitido porque la conexión "${name}" no se encontró en "connections".`,
     connectionFailed: 'Conexión no establecida',
   },
 };

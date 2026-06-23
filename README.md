@@ -148,6 +148,57 @@ The configuration file allows you to define CLI language, output directories, na
 }
 ```
 
+The `migrations` property accepts either a single object or an array of objects. When it is an array, the `migrations` command runs the process for each item in the declared order.
+
+You can also define `connectionName` on each migration item to use a specific connection from the `connections` object. When `connectionName` is omitted, the migration uses the default connection from `connection`. If the provided name does not exist in `connections`, that migration item is skipped and a warning is shown to the user.
+
+```json
+{
+  "target": "sequelize",
+  "migrations": [
+    {
+      "outputDir": "exports/migrations/tenant-a",
+      "fileNamePattern": "timestamp-prefix",
+      "connectionName": "tenantA",
+      "disableForeignKeys": true
+    },
+    {
+      "outputDir": "exports/migrations/tenant-b",
+      "fileNamePattern": "timestamp-prefix",
+      "connectionName": "tenantB",
+      "data": true,
+      "dataTables": ["users", "roles"]
+    }
+  ],
+  "connection": {
+    "type": "postgres",
+    "host": "localhost",
+    "port": 5432,
+    "username": "default_user",
+    "password": "secret",
+    "database": "default_db"
+  },
+  "connections": {
+    "tenantA": {
+      "type": "postgres",
+      "host": "localhost",
+      "port": 5432,
+      "username": "tenant_a_user",
+      "password": "secret",
+      "database": "tenant_a_db"
+    },
+    "tenantB": {
+      "type": "postgres",
+      "host": "localhost",
+      "port": 5432,
+      "username": "tenant_b_user",
+      "password": "secret",
+      "database": "tenant_b_db"
+    }
+  }
+}
+```
+
 ### Version Check Configuration
 
 You can configure the automatic version check in `dbutility.config.json`.
@@ -336,16 +387,16 @@ When the source schema contains wide tables or oversized index key lists, the CL
 dbutility migrations --target <orm> [options] [connection-options]
 ```
 
-| Flag                | Description                                                          | Required                                             |
-| ------------------- | -------------------------------------------------------------------- | ---------------------------------------------------- |
-| `--target <target>` | Target ORM (`sequelize`, `typeorm`)                                  | Yes                                                  |
-| `--output <dir>`    | Output directory                                                     | No                                                   |
-| `--data`            | Generate data migration (seeds) along with schema (Overrides config) | No                                                   |
-| `--only-data`       | Generate ONLY data migrations                                        | No                                                   |
-| `--backup`          | Export a database backup after the automatic migration test run      | No                                                   |
-| `--disable-foreign-keys` | Disable generation of foreign key migration files (`add-fks-*`) | No                                                   |
-| `--tables <tables>` | Comma-separated list of tables for data export (Overrides config)    | Yes (if `--data` or `--only-data` and not in config) |
-| `--test`            | Run test command after migration generation                          | No                                                   |
+| Flag                     | Description                                                          | Required                                             |
+| ------------------------ | -------------------------------------------------------------------- | ---------------------------------------------------- |
+| `--target <target>`      | Target ORM (`sequelize`, `typeorm`)                                  | Yes                                                  |
+| `--output <dir>`         | Output directory                                                     | No                                                   |
+| `--data`                 | Generate data migration (seeds) along with schema (Overrides config) | No                                                   |
+| `--only-data`            | Generate ONLY data migrations                                        | No                                                   |
+| `--backup`               | Export a database backup after the automatic migration test run      | No                                                   |
+| `--disable-foreign-keys` | Disable generation of foreign key migration files (`add-fks-*`)      | No                                                   |
+| `--tables <tables>`      | Comma-separated list of tables for data export (Overrides config)    | Yes (if `--data` or `--only-data` and not in config) |
+| `--test`                 | Run test command after migration generation                          | No                                                   |
 
 Priority for `disableForeignKeys`: CLI flag `--disable-foreign-keys` > `dbutility.config.json` > `.env`. Default: `false`.
 Priority for `backup`: CLI flag `--backup` > `dbutility.config.json` > `.env`. Default: `false`.

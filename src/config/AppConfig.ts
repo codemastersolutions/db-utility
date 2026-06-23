@@ -13,6 +13,18 @@ export interface DataTableConfig {
   disableIdentity?: boolean;
 }
 
+export interface MigrationConfig {
+  outputDir?: string;
+  fileNamePattern: 'timestamp-prefix' | 'prefix-timestamp';
+  data?: boolean;
+  dataTables?: (string | DataTableConfig)[];
+  backup?: boolean;
+  disableForeignKeys?: boolean;
+  connectionName?: string;
+}
+
+export type AppMigrationsConfig = MigrationConfig | MigrationConfig[];
+
 export interface VersionCheckConfig {
   enabled: boolean;
   frequency: 'daily' | 'weekly' | 'monthly';
@@ -25,15 +37,23 @@ export interface AppConfig {
   introspection: {
     outputDir: string;
   };
-  migrations: {
-    outputDir?: string;
-    fileNamePattern: 'timestamp-prefix' | 'prefix-timestamp';
-    data?: boolean;
-    dataTables?: (string | DataTableConfig)[];
-    backup?: boolean;
-    disableForeignKeys?: boolean;
-  };
+  migrations: AppMigrationsConfig;
 }
+
+type RawMigrationConfig = Partial<MigrationConfig>;
+type RawMigrationsConfig = RawMigrationConfig | RawMigrationConfig[];
+type RawAppConfig = Omit<Partial<AppConfig>, 'migrations'> & {
+  migrations?: RawMigrationsConfig;
+};
+
+const defaultMigrationConfig: MigrationConfig = {
+  outputDir: 'db-utility-migrations',
+  fileNamePattern: 'timestamp-prefix',
+  data: false,
+  dataTables: [],
+  backup: false,
+  disableForeignKeys: false,
+};
 
 const defaultConfig: AppConfig = {
   language: 'pt-BR',
@@ -44,20 +64,19 @@ const defaultConfig: AppConfig = {
   introspection: {
     outputDir: 'db-utility-introspect',
   },
-  migrations: {
-    outputDir: 'db-utility-migrations',
-    fileNamePattern: 'timestamp-prefix',
-    data: false,
-    dataTables: [],
-    backup: false,
-    disableForeignKeys: false,
-  },
+  migrations: defaultMigrationConfig,
 };
+
+export const getMigrationConfigEntries = (migrations: AppMigrationsConfig): MigrationConfig[] =>
+  Array.isArray(migrations) ? migrations : [migrations];
+
+export const getPrimaryMigrationConfig = (migrations: AppMigrationsConfig): MigrationConfig =>
+  Array.isArray(migrations) ? (migrations[0] ?? defaultMigrationConfig) : migrations;
 
 export class AppConfigLoader {
   static load(configPath?: string): AppConfig {
     const fromEnv = this.loadFromEnvRaw();
-    let fromFile: Partial<AppConfig> = {};
+    let fromFile: RawAppConfig = {};
 
     if (configPath) {
       fromFile = this.loadFromFileRaw(configPath);
@@ -78,7 +97,7 @@ export class AppConfigLoader {
     }
 
     // Merge: File > Env > Default (via normalize)
-    const merged: Partial<AppConfig> = {
+    const merged: RawAppConfig = {
       language: fromFile.language || fromEnv.language,
       target: fromFile.target || fromEnv.target,
     };
@@ -109,48 +128,16 @@ export class AppConfigLoader {
       };
     }
 
-    const envMigrations = fromEnv.migrations;
-    const fileMigrations = fromFile.migrations;
-
-    const migrationsOutputDir = fileMigrations?.outputDir ?? envMigrations?.outputDir;
-    const migrationsFileNamePatternRaw =
-      fileMigrations?.fileNamePattern ?? envMigrations?.fileNamePattern;
-
-    const migrationsData = fileMigrations?.data ?? envMigrations?.data;
-    const migrationsDataTables = fileMigrations?.dataTables ?? envMigrations?.dataTables;
-    const migrationsBackup = fileMigrations?.backup ?? envMigrations?.backup;
-    const migrationsDisableForeignKeys =
-      fileMigrations?.disableForeignKeys ?? envMigrations?.disableForeignKeys;
-
-    if (
-      migrationsOutputDir ||
-      migrationsFileNamePatternRaw ||
-      migrationsData !== undefined ||
-      migrationsDataTables ||
-      migrationsBackup !== undefined ||
-      migrationsDisableForeignKeys !== undefined
-    ) {
-      const fileNamePattern: 'timestamp-prefix' | 'prefix-timestamp' =
-        migrationsFileNamePatternRaw === 'prefix-timestamp'
-          ? 'prefix-timestamp'
-          : 'timestamp-prefix';
-
-      merged.migrations = {
-        fileNamePattern,
-        ...(migrationsOutputDir ? { outputDir: migrationsOutputDir } : {}),
-        ...(migrationsData === undefined ? {} : { data: migrationsData }),
-        ...(migrationsDataTables ? { dataTables: migrationsDataTables } : {}),
-        ...(migrationsBackup === undefined ? {} : { backup: migrationsBackup }),
-        ...(migrationsDisableForeignKeys === undefined
-          ? {}
-          : { disableForeignKeys: migrationsDisableForeignKeys }),
-      };
+    const envMigrations = Array.isArray(fromEnv.migrations) ? undefined : fromEnv.migrations;
+    const mergedMigrations = this.mergeMigrationsConfig(fromFile.migrations, envMigrations);
+    if (mergedMigrations !== undefined) {
+      merged.migrations = mergedMigrations;
     }
 
     return this.normalize(merged);
   }
 
-  private static loadFromFileRaw(pathStr: string): Partial<AppConfig> {
+  private static loadFromFileRaw(pathStr: string): RawAppConfig {
     const absolutePath = resolve(process.cwd(), pathStr);
     if (!existsSync(absolutePath)) {
       throw new DbUtilityError('APP_CONFIG_FILE_NOT_FOUND', absolutePath);
@@ -159,13 +146,13 @@ export class AppConfigLoader {
     const ext = extname(absolutePath);
     if (ext === '.json' || ext === '') {
       const content = readFileSync(absolutePath, 'utf-8');
-      return JSON.parse(content) as Partial<AppConfig>;
+      return JSON.parse(content) as RawAppConfig;
     }
 
     throw new DbUtilityError('APP_CONFIG_FILE_FORMAT_UNSUPPORTED', ext);
   }
 
-  private static loadFromEnvRaw(): Partial<AppConfig> {
+  private static loadFromEnvRaw(): RawAppConfig {
     const rawLanguage =
       process.env.DB_UTILITY_LANG ||
       process.env.DB_UTILITY_LANGUAGE ||
@@ -195,7 +182,7 @@ export class AppConfigLoader {
       process.env.DB_UTILITY_MIGRATIONS_DISABLE_FOREIGN_KEYS ||
       process.env.DBUTILITY_MIGRATIONS_DISABLE_FOREIGN_KEYS;
 
-    const config: Partial<AppConfig> = {};
+    const config: RawAppConfig = {};
 
     if (rawLanguage) {
       config.language = this.normalizeLanguage(rawLanguage);
@@ -239,20 +226,23 @@ export class AppConfigLoader {
         ? rawMigrationsDisableForeignKeys === 'true'
         : undefined;
 
-      config.migrations = {
+      config.migrations = this.mergeMigrationConfig(
+        {
+          ...(rawMigrationsOutputDir ? { outputDir: rawMigrationsOutputDir } : {}),
+          ...(data === undefined ? {} : { data }),
+          ...(dataTables ? { dataTables } : {}),
+          ...(backup === undefined ? {} : { backup }),
+          ...(disableForeignKeys === undefined ? {} : { disableForeignKeys }),
+        },
+        undefined,
         fileNamePattern,
-        ...(rawMigrationsOutputDir ? { outputDir: rawMigrationsOutputDir } : {}),
-        ...(data === undefined ? {} : { data }),
-        ...(dataTables ? { dataTables } : {}),
-        ...(backup === undefined ? {} : { backup }),
-        ...(disableForeignKeys === undefined ? {} : { disableForeignKeys }),
-      };
+      );
     }
 
     return config;
   }
 
-  private static normalize(raw: Partial<AppConfig>): AppConfig {
+  private static normalize(raw: RawAppConfig): AppConfig {
     const language = raw.language ? this.normalizeLanguage(raw.language) : defaultConfig.language;
     const target = raw.target;
 
@@ -265,23 +255,6 @@ export class AppConfigLoader {
       ? raw.introspection.outputDir
       : defaultConfig.introspection.outputDir;
 
-    const migrationsOutputDir = raw.migrations?.outputDir ? raw.migrations.outputDir : undefined;
-
-    const fileNamePatternRaw = raw.migrations?.fileNamePattern
-      ? raw.migrations.fileNamePattern
-      : defaultConfig.migrations.fileNamePattern;
-
-    const fileNamePattern: 'timestamp-prefix' | 'prefix-timestamp' =
-      fileNamePatternRaw === 'prefix-timestamp' ? 'prefix-timestamp' : 'timestamp-prefix';
-
-    const data = raw.migrations?.data ?? defaultConfig.migrations.data;
-
-    const dataTables = raw.migrations?.dataTables ?? defaultConfig.migrations.dataTables;
-
-    const backup = raw.migrations?.backup ?? defaultConfig.migrations.backup;
-    const disableForeignKeys =
-      raw.migrations?.disableForeignKeys ?? defaultConfig.migrations.disableForeignKeys;
-
     return {
       language,
       ...(target ? { target } : {}),
@@ -289,14 +262,81 @@ export class AppConfigLoader {
       introspection: {
         outputDir: introspectionOutputDir,
       },
-      migrations: {
-        fileNamePattern,
-        data,
-        dataTables,
-        backup,
-        disableForeignKeys,
-        ...(migrationsOutputDir ? { outputDir: migrationsOutputDir } : {}),
-      },
+      migrations: this.normalizeMigrationsConfig(raw.migrations),
+    };
+  }
+
+  private static mergeMigrationsConfig(
+    fileMigrations?: RawMigrationsConfig,
+    envMigrations?: RawMigrationConfig,
+  ): RawMigrationsConfig | undefined {
+    if (Array.isArray(fileMigrations)) {
+      return fileMigrations.map((entry) => this.mergeMigrationConfig(entry, envMigrations));
+    }
+
+    if (fileMigrations || envMigrations) {
+      return this.mergeMigrationConfig(fileMigrations, envMigrations);
+    }
+
+    return undefined;
+  }
+
+  private static mergeMigrationConfig(
+    fileMigration?: RawMigrationConfig,
+    envMigration?: RawMigrationConfig,
+    fileNamePatternOverride?: 'timestamp-prefix' | 'prefix-timestamp',
+  ): RawMigrationConfig {
+    const outputDir = fileMigration?.outputDir ?? envMigration?.outputDir;
+    const fileNamePatternRaw =
+      fileNamePatternOverride ??
+      fileMigration?.fileNamePattern ??
+      envMigration?.fileNamePattern ??
+      defaultMigrationConfig.fileNamePattern;
+    const data = fileMigration?.data ?? envMigration?.data;
+    const dataTables = fileMigration?.dataTables ?? envMigration?.dataTables;
+    const backup = fileMigration?.backup ?? envMigration?.backup;
+    const disableForeignKeys =
+      fileMigration?.disableForeignKeys ?? envMigration?.disableForeignKeys;
+    const connectionName = fileMigration?.connectionName;
+
+    return {
+      fileNamePattern:
+        fileNamePatternRaw === 'prefix-timestamp' ? 'prefix-timestamp' : 'timestamp-prefix',
+      ...(outputDir ? { outputDir } : {}),
+      ...(data === undefined ? {} : { data }),
+      ...(dataTables ? { dataTables } : {}),
+      ...(backup === undefined ? {} : { backup }),
+      ...(disableForeignKeys === undefined ? {} : { disableForeignKeys }),
+      ...(connectionName ? { connectionName } : {}),
+    };
+  }
+
+  private static normalizeMigrationsConfig(raw?: RawMigrationsConfig): AppMigrationsConfig {
+    if (Array.isArray(raw)) {
+      return raw.map((entry) => this.normalizeMigrationConfig(entry));
+    }
+
+    return this.normalizeMigrationConfig(raw);
+  }
+
+  private static normalizeMigrationConfig(raw?: RawMigrationConfig): MigrationConfig {
+    const outputDir = raw?.outputDir ?? defaultMigrationConfig.outputDir;
+    const fileNamePatternRaw = raw?.fileNamePattern ?? defaultMigrationConfig.fileNamePattern;
+    const data = raw?.data ?? defaultMigrationConfig.data;
+    const dataTables = raw?.dataTables ?? defaultMigrationConfig.dataTables;
+    const backup = raw?.backup ?? defaultMigrationConfig.backup;
+    const disableForeignKeys = raw?.disableForeignKeys ?? defaultMigrationConfig.disableForeignKeys;
+    const connectionName = raw?.connectionName;
+
+    return {
+      fileNamePattern:
+        fileNamePatternRaw === 'prefix-timestamp' ? 'prefix-timestamp' : 'timestamp-prefix',
+      data,
+      dataTables,
+      backup,
+      disableForeignKeys,
+      ...(outputDir ? { outputDir } : {}),
+      ...(connectionName ? { connectionName } : {}),
     };
   }
 

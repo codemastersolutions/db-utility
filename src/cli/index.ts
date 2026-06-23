@@ -2,7 +2,7 @@
 import { Command } from 'commander';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { AppConfigLoader } from '../config/AppConfig';
+import { AppConfigLoader, getPrimaryMigrationConfig } from '../config/AppConfig';
 import { ConfigInitializer } from '../config/ConfigInitializer';
 import { ConfigLoader } from '../config/ConfigLoader';
 import { ConnectionFactory } from '../database/ConnectionFactory';
@@ -33,6 +33,8 @@ const messages = getMessages(appConfig.language);
 import { VersionChecker } from './VersionChecker';
 import {
   buildIntrospectionWarnings,
+  getMigrationConfigs,
+  resolveMigrationConnectionName,
   resolveMigrationBackup,
   resolveDisableForeignKeys,
   resolveMigrationOutputDir,
@@ -180,7 +182,7 @@ const runTest = async (options: {
   const containerManager = new ContainerManager();
   const tester = new MigrationTester(containerManager);
 
-  const backup = options.backup ?? appConfig.migrations.backup;
+  const backup = options.backup ?? getPrimaryMigrationConfig(appConfig.migrations).backup;
   await tester.test(target, migrationsDir, engines, backup);
 };
 
@@ -340,140 +342,175 @@ addConnectionOptions(migrateCommand)
       handleCliError(new Error('Target is required (use --target or config.target)'));
       return;
     }
+    const migrationConfigs = getMigrationConfigs(appConfig);
 
-    const backupEnabled = resolveMigrationBackup(options.backup, appConfig);
-    const shouldRunTests = resolveShouldRunMigrationTests(options.test, backupEnabled);
+    for (const [index, migrationConfig] of migrationConfigs.entries()) {
+      const backupEnabled = resolveMigrationBackup(options.backup, migrationConfig);
+      const shouldRunTests = resolveShouldRunMigrationTests(options.test, backupEnabled);
+      const connectionName = resolveMigrationConnectionName(options.conn, migrationConfig);
+      const itemLabel =
+        migrationConfigs.length > 1
+          ? `migration item ${index + 1}/${migrationConfigs.length}`
+          : 'migration';
 
-    await withConnection(options, async (connector, config) => {
-      console.log(messages.cli.introspectConnecting(config.database));
+      let connector: IDatabaseConnector | null = null;
+      let outputDir: string | undefined;
 
-      const service = new IntrospectionService(connector, config);
-      const schema = await service.introspect();
-      printIntrospectionWarnings(schema);
-
-      const generator = getGenerator(target);
-
-      // Logic:
-      // --only-data: Generate ONLY data migrations (no schema)
-      // --data or config.data: Generate BOTH schema AND data migrations
-      // (default): Generate ONLY schema migrations
-
-      const isDataEnabled = options.data || appConfig.migrations.data;
-      const generateData = options.onlyData || isDataEnabled;
-      const generateSchema = !options.onlyData;
-      const migrationOptions: MigrationGenerationOptions = {
-        disableForeignKeys: resolveDisableForeignKeys(options.disableForeignKeys, appConfig),
-      };
-
-      let extractedData: any[] = [];
-      if (generateData) {
-        const tables = options.tables
-          ? options.tables.split(',').map((t) => t.trim())
-          : appConfig.migrations.dataTables || [];
-
-        if (tables.length === 0) {
-          throw new Error(
-            'You must specify at least one table via --tables or config.migrations.dataTables when using --data or --only-data',
-          );
-        }
-
-        const tableNames = tables.map((t) => (typeof t === 'string' ? t : t.table));
-        console.log(`Extracting data from tables: ${tableNames.join(', ')}...`);
-        const extractor = new DataExtractor(connector, config.type);
-        extractedData = await extractor.extract(schema, tables);
-      }
-
-      // Save database info
-      const version = await connector.getVersion();
-      const dbInfo = {
-        type: config.type,
-        version: version,
-        databaseName: config.database,
-        timestamp: new Date().toISOString(),
-      };
-
-      // Priority: Flag > Config > Default
-      const baseOutputDir = resolveMigrationOutputDir(process.cwd(), options.output, appConfig);
-
-      const outputDir = join(baseOutputDir, target.toLowerCase());
-
-      if (generateSchema) {
-        if (!('generateMigrations' in generator)) {
-          throw new Error(`Target ${target} does not support migration generation`);
-        }
-
-        const migrationGenerator = generator as MigrationGenerator;
-
-        console.log(`Generating migrations for ${target}...`);
-        // Pass extractedData if available (interleaved generation)
-        // If generateData is true but we are here, it means we are in the "both" case (options.data)
-        // If options.onlyData is true, generateSchema is false, so we won't be here.
-        const files = await migrationGenerator.generateMigrations(
-          schema,
-          isDataEnabled ? extractedData : undefined,
-          migrationOptions,
-        );
-
-        GeneratorWriter.clean(outputDir);
-        GeneratorWriter.write(files, outputDir);
-
-        // Write database info
-        GeneratorWriter.write(
-          [
-            {
-              fileName: 'database-info.json',
-              content: JSON.stringify(dbInfo, null, 2),
-            },
-          ],
-          outputDir,
-        );
-
-        // Identity handling is embedded in the generated seed migrations
-
-        console.log(`Successfully generated ${files.length} migration files in ${outputDir}`);
-      } else if (generateData) {
-        // Only data generation (options.onlyData is true)
-        if (!('generateDataMigrations' in generator)) {
-          throw new Error(`Target ${target} does not support data migration generation`);
-        }
-
-        console.log(`Generating data migrations for ${target}...`);
-        const dataMigrationGenerator = generator as unknown as DataMigrationGenerator;
-        const files = await dataMigrationGenerator.generateDataMigrations(extractedData);
-
-        GeneratorWriter.clean(outputDir);
-        GeneratorWriter.write(files, outputDir);
-
-        // Write database info
-        GeneratorWriter.write(
-          [
-            {
-              fileName: 'database-info.json',
-              content: JSON.stringify(dbInfo, null, 2),
-            },
-          ],
-          outputDir,
-        );
-
-        // Identity handling is embedded in the generated seed migrations
-
-        console.log(`Successfully generated ${files.length} seed files in ${outputDir}`);
-      }
-    });
-
-    if (shouldRunTests) {
-      const baseOutputDir = resolveMigrationOutputDir(process.cwd(), options.output, appConfig);
-      const outputDir = join(baseOutputDir, target.toLowerCase());
-
-      console.log('\nStarting tests...');
       try {
-        await runTest({
-          target,
-          dir: outputDir,
-          backup: backupEnabled,
-        });
+        const connectionOptions: CliOptions = {
+          ...options,
+          ...(connectionName ? { conn: connectionName } : {}),
+        };
+        const config = await getConnectionConfig(connectionOptions);
+        console.log(messages.cli.connecting(config.type));
+
+        connector = ConnectionFactory.create(config);
+        await connector.connect();
+
+        console.log(messages.cli.introspectConnecting(config.database));
+
+        const service = new IntrospectionService(connector, config);
+        const schema = await service.introspect();
+        printIntrospectionWarnings(schema);
+
+        const generator = getGenerator(target);
+
+        const isDataEnabled = options.data || migrationConfig.data;
+        const generateData = options.onlyData || isDataEnabled;
+        const generateSchema = !options.onlyData;
+        const migrationOptions: MigrationGenerationOptions = {
+          disableForeignKeys: resolveDisableForeignKeys(
+            options.disableForeignKeys,
+            migrationConfig,
+          ),
+        };
+
+        let extractedData: any[] = [];
+        if (generateData) {
+          const tables = options.tables
+            ? options.tables.split(',').map((t) => t.trim())
+            : migrationConfig.dataTables || [];
+
+          if (tables.length === 0) {
+            throw new Error(
+              'You must specify at least one table via --tables or config.migrations.dataTables when using --data or --only-data',
+            );
+          }
+
+          const tableNames = tables.map((t) => (typeof t === 'string' ? t : t.table));
+          console.log(`Extracting data from tables: ${tableNames.join(', ')}...`);
+          const extractor = new DataExtractor(connector, config.type);
+          extractedData = await extractor.extract(schema, tables);
+        }
+
+        const version = await connector.getVersion();
+        const dbInfo = {
+          type: config.type,
+          version: version,
+          databaseName: config.database,
+          timestamp: new Date().toISOString(),
+        };
+
+        const baseOutputDir = resolveMigrationOutputDir(
+          process.cwd(),
+          options.output,
+          migrationConfig,
+        );
+        outputDir = join(baseOutputDir, target.toLowerCase());
+
+        if (generateSchema) {
+          if (!('generateMigrations' in generator)) {
+            throw new Error(`Target ${target} does not support migration generation`);
+          }
+
+          const migrationGenerator = generator as MigrationGenerator;
+
+          console.log(`Generating migrations for ${target} (${itemLabel})...`);
+          const files = await migrationGenerator.generateMigrations(
+            schema,
+            isDataEnabled ? extractedData : undefined,
+            migrationOptions,
+          );
+
+          GeneratorWriter.clean(outputDir);
+          GeneratorWriter.write(files, outputDir);
+          GeneratorWriter.write(
+            [
+              {
+                fileName: 'database-info.json',
+                content: JSON.stringify(dbInfo, null, 2),
+              },
+            ],
+            outputDir,
+          );
+
+          console.log(`Successfully generated ${files.length} migration files in ${outputDir}`);
+        } else if (generateData) {
+          if (!('generateDataMigrations' in generator)) {
+            throw new Error(`Target ${target} does not support data migration generation`);
+          }
+
+          console.log(`Generating data migrations for ${target} (${itemLabel})...`);
+          const dataMigrationGenerator = generator as unknown as DataMigrationGenerator;
+          const files = await dataMigrationGenerator.generateDataMigrations(extractedData);
+
+          GeneratorWriter.clean(outputDir);
+          GeneratorWriter.write(files, outputDir);
+          GeneratorWriter.write(
+            [
+              {
+                fileName: 'database-info.json',
+                content: JSON.stringify(dbInfo, null, 2),
+              },
+            ],
+            outputDir,
+          );
+
+          console.log(`Successfully generated ${files.length} seed files in ${outputDir}`);
+        }
       } catch (error) {
+        const shouldSkipMissingConnection =
+          error instanceof DbUtilityError &&
+          error.code === 'CONNECTION_CONFIG_NOT_FOUND' &&
+          options.conn === undefined &&
+          migrationConfig.connectionName !== undefined;
+
+        if (shouldSkipMissingConnection) {
+          console.warn(
+            messages.cli.migrationSkippedConnectionNotFound(
+              migrationConfig.connectionName as string,
+              index + 1,
+            ),
+          );
+          continue;
+        }
+
         handleCliError(error);
+      } finally {
+        if (connector) {
+          try {
+            await connector.disconnect();
+            console.log(messages.cli.connectionClosed);
+          } catch (disconnectError) {
+            console.warn(
+              'Erro ao fechar conexão:',
+              disconnectError instanceof Error ? disconnectError.message : String(disconnectError),
+            );
+          }
+        }
+      }
+
+      if (shouldRunTests && outputDir) {
+        console.log('\nStarting tests...');
+        try {
+          await runTest({
+            target,
+            dir: outputDir,
+            backup: backupEnabled,
+          });
+        } catch (error) {
+          handleCliError(error);
+        }
       }
     }
   });

@@ -148,6 +148,57 @@ El archivo de configuración permite definir el idioma de la CLI, directorios de
 }
 ```
 
+La propiedad `migrations` acepta tanto un objeto único como un arreglo de objetos. Cuando es un arreglo, el comando `migrations` ejecuta el proceso para cada elemento en el orden definido.
+
+También puede definir `connectionName` en cada elemento de migración para usar una conexión específica del objeto `connections`. Si `connectionName` no se informa, la migración usa la conexión predeterminada definida en `connection`. Si el nombre informado no existe en `connections`, ese elemento de migración se omite y se muestra una advertencia al usuario.
+
+```json
+{
+  "target": "sequelize",
+  "migrations": [
+    {
+      "outputDir": "exports/migrations/tenant-a",
+      "fileNamePattern": "timestamp-prefix",
+      "connectionName": "tenantA",
+      "disableForeignKeys": true
+    },
+    {
+      "outputDir": "exports/migrations/tenant-b",
+      "fileNamePattern": "timestamp-prefix",
+      "connectionName": "tenantB",
+      "data": true,
+      "dataTables": ["usuarios", "roles"]
+    }
+  ],
+  "connection": {
+    "type": "postgres",
+    "host": "localhost",
+    "port": 5432,
+    "username": "default_user",
+    "password": "secret",
+    "database": "default_db"
+  },
+  "connections": {
+    "tenantA": {
+      "type": "postgres",
+      "host": "localhost",
+      "port": 5432,
+      "username": "tenant_a_user",
+      "password": "secret",
+      "database": "tenant_a_db"
+    },
+    "tenantB": {
+      "type": "postgres",
+      "host": "localhost",
+      "port": 5432,
+      "username": "tenant_b_user",
+      "password": "secret",
+      "database": "tenant_b_db"
+    }
+  }
+}
+```
+
 ### Configuración de Verificación de Versión
 
 Puede configurar la verificación automática de versión en `dbutility.config.json`.

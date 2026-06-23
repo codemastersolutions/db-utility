@@ -1,19 +1,46 @@
 import { join } from 'node:path';
-import { AppConfig } from '../config/AppConfig';
+import {
+  AppConfig,
+  MigrationConfig,
+  getMigrationConfigEntries,
+  getPrimaryMigrationConfig,
+} from '../config/AppConfig';
 import { DatabaseSchema } from '../types/introspection';
 import { analyzeSchemaLimits } from '../utils/IndexUtils';
+
+type MigrationConfigSource = AppConfig | MigrationConfig;
+const fallbackMigrationConfig: MigrationConfig = {
+  fileNamePattern: 'timestamp-prefix',
+  backup: false,
+  disableForeignKeys: false,
+};
+
+const getMigrationConfig = (source: MigrationConfigSource): MigrationConfig => {
+  if ('migrations' in source) {
+    return source.migrations
+      ? getPrimaryMigrationConfig(source.migrations)
+      : fallbackMigrationConfig;
+  }
+
+  return source;
+};
+
+export const getMigrationConfigs = (appConfig: AppConfig): MigrationConfig[] =>
+  getMigrationConfigEntries(appConfig.migrations);
 
 export const resolveMigrationOutputDir = (
   cwd: string,
   cliOutputOption: string | undefined,
-  appConfig: AppConfig,
+  source: MigrationConfigSource,
 ): string => {
   if (cliOutputOption) {
     return cliOutputOption;
   }
 
-  if (appConfig.migrations?.outputDir) {
-    return join(cwd, appConfig.migrations.outputDir);
+  const migrationConfig = getMigrationConfig(source);
+
+  if (migrationConfig.outputDir) {
+    return join(cwd, migrationConfig.outputDir);
   }
 
   return join(cwd, 'exports', 'migrations');
@@ -21,24 +48,24 @@ export const resolveMigrationOutputDir = (
 
 export const resolveDisableForeignKeys = (
   cliDisableForeignKeys: boolean | undefined,
-  appConfig: AppConfig,
+  source: MigrationConfigSource,
 ): boolean => {
   if (cliDisableForeignKeys === true) {
     return true;
   }
 
-  return appConfig.migrations.disableForeignKeys ?? false;
+  return getMigrationConfig(source).disableForeignKeys ?? false;
 };
 
 export const resolveMigrationBackup = (
   cliBackup: boolean | undefined,
-  appConfig: AppConfig,
+  source: MigrationConfigSource,
 ): boolean => {
   if (cliBackup === true) {
     return true;
   }
 
-  return appConfig.migrations.backup ?? false;
+  return getMigrationConfig(source).backup ?? false;
 };
 
 export const resolveShouldRunMigrationTests = (
@@ -51,6 +78,11 @@ export const resolveShouldRunMigrationTests = (
 
   return backupEnabled;
 };
+
+export const resolveMigrationConnectionName = (
+  cliConnectionName: string | undefined,
+  migrationConfig: MigrationConfig,
+): string | undefined => cliConnectionName ?? migrationConfig.connectionName;
 
 export interface IntrospectionWarningMessages {
   schemaLimitSummary: string;

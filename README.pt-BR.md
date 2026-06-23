@@ -148,6 +148,57 @@ O arquivo de configuração permite definir o idioma da CLI, diretórios de saí
 }
 ```
 
+A propriedade `migrations` aceita tanto um objeto único quanto um array de objetos. Quando for um array, o comando `migrations` executa o processo para cada item na ordem informada.
+
+Você também pode definir `connectionName` em cada item de migration para usar uma conexão específica do objeto `connections`. Se `connectionName` não for informado, a migration usa a conexão padrão definida em `connection`. Se o nome informado não existir em `connections`, o item é ignorado e uma mensagem é exibida ao usuário.
+
+```json
+{
+  "target": "sequelize",
+  "migrations": [
+    {
+      "outputDir": "exports/migrations/tenant-a",
+      "fileNamePattern": "timestamp-prefix",
+      "connectionName": "tenantA",
+      "disableForeignKeys": true
+    },
+    {
+      "outputDir": "exports/migrations/tenant-b",
+      "fileNamePattern": "timestamp-prefix",
+      "connectionName": "tenantB",
+      "data": true,
+      "dataTables": ["usuarios", "perfis"]
+    }
+  ],
+  "connection": {
+    "type": "postgres",
+    "host": "localhost",
+    "port": 5432,
+    "username": "default_user",
+    "password": "secret",
+    "database": "default_db"
+  },
+  "connections": {
+    "tenantA": {
+      "type": "postgres",
+      "host": "localhost",
+      "port": 5432,
+      "username": "tenant_a_user",
+      "password": "secret",
+      "database": "tenant_a_db"
+    },
+    "tenantB": {
+      "type": "postgres",
+      "host": "localhost",
+      "port": 5432,
+      "username": "tenant_b_user",
+      "password": "secret",
+      "database": "tenant_b_db"
+    }
+  }
+}
+```
+
 ### Configuração de Verificação de Versão
 
 Você pode configurar a verificação automática de versão no `dbutility.config.json`.

@@ -14,11 +14,19 @@ interface InitialFileConfig {
   introspection?: {
     outputDir: string;
   };
-  migrations?: {
-    outputDir: string;
-    fileNamePattern: 'timestamp-prefix' | 'prefix-timestamp';
-    disableForeignKeys?: boolean;
-  };
+  migrations?:
+    | {
+        outputDir: string;
+        fileNamePattern: 'timestamp-prefix' | 'prefix-timestamp';
+        disableForeignKeys?: boolean;
+        connectionName?: string;
+      }
+    | Array<{
+        outputDir: string;
+        fileNamePattern: 'timestamp-prefix' | 'prefix-timestamp';
+        disableForeignKeys?: boolean;
+        connectionName?: string;
+      }>;
   connection?: Partial<DatabaseConfig>;
   connections?: Record<string, Partial<DatabaseConfig>>;
 }
