@@ -57,6 +57,17 @@ describe('Identity Generation', () => {
     expect(seedContent).toContain('SET IDENTITY_INSERT [dbo].[Users] OFF;');
   });
 
+  it('SequelizeGenerator should preserve MSSQL identity handling in interleaved migrations', async () => {
+    const generator = new SequelizeGenerator();
+    const files = await generator.generateMigrations(mockSchema, mockData);
+
+    const seedFile = files.find((file) => file.fileName.includes('seed-Users.js'));
+
+    expect(seedFile).toBeDefined();
+    expect(seedFile?.content).toContain('SET IDENTITY_INSERT [dbo].[Users] ON;');
+    expect(seedFile?.content).toContain('SET IDENTITY_INSERT [dbo].[Users] OFF;');
+  });
+
   it('SequelizeGenerator should revive Buffer values in seed migrations', async () => {
     const generator = new SequelizeGenerator();
     const files = await generator.generateDataMigrations([

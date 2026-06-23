@@ -3,6 +3,53 @@ import { MssqlIntrospector } from '../../../src/introspection/MssqlIntrospector'
 import { IDatabaseConnector } from '../../../src/types/database';
 
 describe('MssqlIntrospector', () => {
+  it('should treat boolean is_identity values from MSSQL as auto increment columns', async () => {
+    const connector: IDatabaseConnector = {
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      isConnected: vi.fn(),
+      getVersion: vi.fn(),
+      query: vi
+        .fn()
+        .mockResolvedValueOnce([{ schema_name: 'dbo', table_name: 'Users' }])
+        .mockResolvedValueOnce([
+          {
+            schema_name: 'dbo',
+            table_name: 'Users',
+            column_name: 'id',
+            data_type: 'int',
+            is_nullable: 'NO',
+            column_default: null,
+            character_maximum_length: null,
+            numeric_precision: 10,
+            numeric_scale: 0,
+            is_identity: true,
+          },
+          {
+            schema_name: 'dbo',
+            table_name: 'Users',
+            column_name: 'name',
+            data_type: 'nvarchar',
+            is_nullable: 'NO',
+            column_default: null,
+            character_maximum_length: 100,
+            numeric_precision: null,
+            numeric_scale: null,
+            is_identity: false,
+          },
+        ])
+        .mockResolvedValueOnce([{ schema_name: 'dbo', table_name: 'Users', column_name: 'id' }])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]),
+    };
+
+    const introspector = new MssqlIntrospector(connector);
+    const schema = await introspector.introspectSchema();
+    const idColumn = schema.tables[0].columns.find((column) => column.name === 'id');
+
+    expect(idColumn?.isAutoIncrement).toBe(true);
+  });
+
   it('should normalize MSSQL column defaults without removing valid SQL expressions', async () => {
     const connector: IDatabaseConnector = {
       connect: vi.fn(),

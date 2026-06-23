@@ -27,7 +27,7 @@ interface MssqlColumnRow {
   character_maximum_length: number | null;
   numeric_precision: number | null;
   numeric_scale: number | null;
-  is_identity: number;
+  is_identity: number | boolean;
 }
 
 interface MssqlPkRow {
@@ -120,7 +120,7 @@ export class MssqlIntrospector extends BaseIntrospector {
         defaultValue: this.normalizeDefaultValue(c.column_default),
         isPrimaryKey: pkSet ? pkSet.has(c.column_name) : false,
         isUnique: false,
-        isAutoIncrement: c.is_identity === 1,
+        isAutoIncrement: this.isIdentityColumn(c.is_identity),
         maxLength: c.character_maximum_length,
         numericPrecision: c.numeric_precision,
         numericScale: c.numeric_scale,
@@ -377,5 +377,9 @@ export class MssqlIntrospector extends BaseIntrospector {
 
   private normalizeDefaultValue(defaultValue: string | null): string | null {
     return defaultValue === null ? null : normalizeDatabaseDefault(defaultValue);
+  }
+
+  private isIdentityColumn(value: number | boolean): boolean {
+    return value === true || value === 1;
   }
 }
