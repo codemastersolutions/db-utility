@@ -121,4 +121,90 @@ describe('Sequelize Foreign Keys', () => {
       "references: {\n          table: 'XXCONTRATOSTATUS',\n          fields:",
     );
   });
+
+  it('should generate per-foreign-key error handling with detailed failure messages', async () => {
+    const schema: DatabaseSchema = {
+      tables: [
+        {
+          name: 'VLNTPESSOASCOMP',
+          columns: [
+            {
+              name: 'CODPESSOA',
+              dataType: 'int',
+              isNullable: false,
+              hasDefault: false,
+              isPrimaryKey: false,
+              isUnique: false,
+              isAutoIncrement: false,
+            },
+          ],
+          indexes: [],
+          foreignKeys: [
+            {
+              name: 'FKVLNTPESSOASCOMP_PPESSOAS',
+              tableName: 'VLNTPESSOASCOMP',
+              columns: ['CODPESSOA'],
+              referencedTable: 'PPESSOA',
+              referencedColumns: ['CODIGO'],
+              deleteRule: 'NO ACTION',
+              updateRule: 'NO ACTION',
+            },
+          ],
+        },
+      ],
+    };
+
+    const generator = new SequelizeGenerator();
+    const migrations = await generator.generateMigrations(schema);
+    const fkMigration = migrations.find((migration) => migration.fileName.includes('add-fks'));
+
+    expect(fkMigration?.content).toContain('function getForeignKeyErrorMessage(error)');
+    expect(fkMigration?.content).toContain("console.warn('Failed to create FK FKVLNTPESSOASCOMP_PPESSOAS on table VLNTPESSOASCOMP:'");
+    expect(fkMigration?.content).toContain(
+      "throw new Error('Foreign key creation failed for table VLNTPESSOASCOMP: ' + failures.join(' | '));",
+    );
+    expect(fkMigration?.content).toContain(
+      "failures.push('FK FKVLNTPESSOASCOMP_PPESSOAS: ' + reason);",
+    );
+  });
+
+  it('should skip foreign key migrations when disableForeignKeys is enabled', async () => {
+    const schema: DatabaseSchema = {
+      tables: [
+        {
+          name: 'XXCONTRATO',
+          columns: [
+            {
+              name: 'CODCONTRATOSTATUS',
+              dataType: 'int',
+              isNullable: false,
+              hasDefault: false,
+              isPrimaryKey: false,
+              isUnique: false,
+              isAutoIncrement: false,
+            },
+          ],
+          indexes: [],
+          foreignKeys: [
+            {
+              name: 'FKXXCONTRATO_XXCONTRATOSTATUS',
+              tableName: 'XXCONTRATO',
+              columns: ['CODCONTRATOSTATUS'],
+              referencedTable: 'XXCONTRATOSTATUS',
+              referencedColumns: ['CODCONTRATOSTATUS'],
+              deleteRule: 'NO ACTION',
+              updateRule: 'NO ACTION',
+            },
+          ],
+        },
+      ],
+    };
+
+    const generator = new SequelizeGenerator();
+    const migrations = await generator.generateMigrations(schema, undefined, {
+      disableForeignKeys: true,
+    });
+
+    expect(migrations.some((migration) => migration.fileName.includes('add-fks'))).toBe(false);
+  });
 });

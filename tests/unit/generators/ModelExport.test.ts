@@ -65,7 +65,7 @@ describe('Model Export Generation', () => {
     const files = await generator.generate(schema);
     const content = files[0].content;
 
-    expect(content).toContain("@Entity('Users')");
+    expect(content).toContain("@Entity({ name: 'Users' })");
     expect(content).toContain("@Index('idx_users_email', ['email'], { unique: true })");
   });
 

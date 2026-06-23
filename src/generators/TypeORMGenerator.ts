@@ -1,11 +1,25 @@
 import { ColumnMetadata, DatabaseSchema, TableData } from '../types/introspection';
+import {
+  formatMssqlQualifiedName,
+  formatMssqlTypeReference,
+  getEffectiveDataType,
+  getUsedAliasTypes,
+  inferEffectiveDefaultLogicalType,
+} from '../utils/ColumnTypeUtils';
 import { filterAutoIncrementColumns } from '../utils/DataUtils';
-import { classifyDatabaseDefault, inferDefaultLogicalType } from '../utils/DefaultValueUtils';
+import { classifyDatabaseDefault } from '../utils/DefaultValueUtils';
 import { getGeneratableIndexes } from '../utils/IndexUtils';
+import {
+  getQualifiedTableName,
+  getTableDataKey,
+  getTableKey,
+  getUsedNonDefaultSchemaNames,
+} from '../utils/TableNameUtils';
 import { topologicalSort } from '../utils/topologicalSort';
 import {
   DataMigrationGenerator,
   GeneratedFile,
+  MigrationGenerationOptions,
   MigrationGenerator,
   SchemaGenerator,
 } from './GeneratorTypes';
@@ -17,11 +31,13 @@ export class TypeORMGenerator
     const files: GeneratedFile[] = [];
 
     for (const table of schema.tables) {
-      const className = this.formatModelName(table.name);
+      const className = this.formatModelName(getQualifiedTableName(table));
       const indexes = getGeneratableIndexes(table.indexes);
+      const entitySchema =
+        table.schemaName && table.schemaName !== 'dbo' ? `, schema: '${table.schemaName}'` : '';
       const content = `import { Entity, PrimaryColumn, Column, Index } from 'typeorm';
 
-@Entity('${table.name}')
+@Entity({ name: '${table.name}'${entitySchema} })
 ${indexes
   .filter((idx) => !idx.isPrimary) // Primary keys are handled by @PrimaryColumn
   .map(
@@ -44,15 +60,54 @@ ${table.columns.map((c) => this.generateColumnDefinition(c)).join('\n')}
     return files;
   }
 
-  async generateMigrations(schema: DatabaseSchema, data?: TableData[]): Promise<GeneratedFile[]> {
+  async generateMigrations(
+    schema: DatabaseSchema,
+    data?: TableData[],
+    options?: MigrationGenerationOptions,
+  ): Promise<GeneratedFile[]> {
     const sortedTables = topologicalSort(schema);
     const files: GeneratedFile[] = [];
+    const seedFiles: GeneratedFile[] = [];
+    const foreignKeyFiles: GeneratedFile[] = [];
+    const disableForeignKeys = options?.disableForeignKeys ?? false;
+    const aliasTypes = getUsedAliasTypes(schema);
+    const schemaNames = getUsedNonDefaultSchemaNames(schema);
+    const tableDataByKey = new Map(
+      (data ?? []).map((entry) => [getTableDataKey(entry), entry] as const),
+    );
     const timestamp = Date.now();
 
     let counter = 0;
-    for (const table of sortedTables) {
+
+    for (const schemaName of schemaNames) {
       counter++;
-      const migrationName = `Create${this.formatModelName(table.name)}${timestamp + counter}`;
+      const migrationName = `CreateSchema${this.formatModelName(schemaName)}${timestamp + counter}`;
+      const fileName = `${timestamp + counter}-${migrationName}.ts`;
+
+      files.push({
+        fileName,
+        content: this.generateSchemaMigration(migrationName, schemaName),
+      });
+    }
+
+    for (const aliasType of aliasTypes) {
+      counter++;
+      const migrationName = `CreateType${this.formatModelName(aliasType.schemaName)}${this.formatModelName(aliasType.name)}${timestamp + counter}`;
+      const fileName = `${timestamp + counter}-${migrationName}.ts`;
+
+      files.push({
+        fileName,
+        content: this.generateAliasTypeMigration(migrationName, aliasType),
+      });
+    }
+
+    for (const table of sortedTables) {
+      if (table.columns.length === 0) {
+        continue;
+      }
+
+      counter++;
+      const migrationName = `Create${this.formatModelName(getQualifiedTableName(table))}${timestamp + counter}`;
       const fileName = `${timestamp + counter}-${migrationName}.ts`;
       const indexes = getGeneratableIndexes(table.indexes);
 
@@ -65,24 +120,10 @@ ${table.columns.map((c) => this.generateColumnDefinition(c)).join('\n')}
 export class ${migrationName} implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.createTable(new Table({
+      ${table.schemaName ? `schema: '${table.schemaName}',` : ''}
       name: '${table.name}',
       columns: [
 ${table.columns.map((c) => this.generateMigrationColumn(c)).join(',\n')}
-      ],
-      foreignKeys: [
-${table.foreignKeys
-  .map(
-    (fk) =>
-      `        {
-          name: '${fk.name}',
-          columnNames: ['${fk.columns.join("', '")}'],
-          referencedTableName: '${fk.referencedTable}',
-          referencedColumnNames: ['${fk.referencedColumns.join("', '")}'],
-          onDelete: '${fk.deleteRule || 'NO ACTION'}',
-          onUpdate: '${fk.updateRule || 'NO ACTION'}',
-        }`,
-  )
-  .join(',\n')}
       ],
     }), true);
 
@@ -90,7 +131,7 @@ ${indexes
   .filter((idx) => !idx.isPrimary)
   .map(
     (idx) =>
-      `    await queryRunner.createIndex('${table.name}', new TableIndex({
+      `    await queryRunner.createIndex('${this.getTypeOrmTableReference(table.name, table.schemaName)}', new TableIndex({
       name: '${idx.name}',
       columnNames: ['${idx.columns.join("', '")}'],
       isUnique: ${idx.isUnique}
@@ -109,7 +150,7 @@ ${
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.dropTable('${table.name}');
+    await queryRunner.dropTable('${this.getTypeOrmTableReference(table.name, table.schemaName)}');
   }
 }
 `;
@@ -117,46 +158,53 @@ ${
         fileName,
         content,
       });
+    }
 
-      // Check if there is data to be seeded for this table
-      if (data) {
-        const tableData = data.find((d) => d.tableName.toLowerCase() === table.name.toLowerCase());
-        if (tableData) {
-          counter++;
-          const seedMigrationName = `Seed${this.formatModelName(tableData.tableName)}${
-            timestamp + counter
-          }`;
-          const seedFileName = `${timestamp + counter}-${seedMigrationName}.ts`;
-          const rows = filterAutoIncrementColumns(tableData);
-          const rowsContent = JSON.stringify(rows, null, 2);
+    for (const table of sortedTables) {
+      if (table.columns.length === 0) {
+        continue;
+      }
 
-          const autoIncCol = tableData.columns.find((c) => c.isAutoIncrement);
-          const autoIncColName = autoIncCol ? autoIncCol.name : null;
+      const tableData = tableDataByKey.get(getTableKey(table));
+      if (!tableData) {
+        continue;
+      }
 
-          const preInsert = tableData.disableIdentity
-            ? `
+      counter++;
+      const seedMigrationName = `Seed${this.formatModelName(
+        getQualifiedTableName({ name: tableData.tableName, schemaName: tableData.schemaName }),
+      )}${timestamp + counter}`;
+      const seedFileName = `${timestamp + counter}-${seedMigrationName}.ts`;
+      const rows = filterAutoIncrementColumns(tableData);
+      const rowsContent = JSON.stringify(rows, null, 2);
+
+      const autoIncCol = tableData.columns.find((c) => c.isAutoIncrement);
+      const autoIncColName = autoIncCol ? autoIncCol.name : null;
+
+      const preInsert = tableData.disableIdentity
+        ? `
     if (queryRunner.connection.driver.options.type === 'mssql') {
       await queryRunner.query('SET IDENTITY_INSERT "${tableData.tableName}" ON');
     }`
-            : '';
+        : '';
 
-          const postInsert = tableData.disableIdentity
-            ? String.raw`
+      const postInsert = tableData.disableIdentity
+        ? String.raw`
     if (queryRunner.connection.driver.options.type === 'mssql') {
       await queryRunner.query('SET IDENTITY_INSERT "${tableData.tableName}" OFF');
     } else if (queryRunner.connection.driver.options.type === 'postgres' && '${autoIncColName}') {
       await queryRunner.query('SELECT setval(pg_get_serial_sequence(\'"${tableData.tableName}"\', \'${autoIncColName}\'), MAX("${autoIncColName}")) FROM "${tableData.tableName}";');
     }`
-            : '';
+        : '';
 
-          const seedContent = `import { MigrationInterface, QueryRunner } from 'typeorm';
+      const seedContent = `import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class ${seedMigrationName} implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     if (${rows.length} > 0) {${preInsert}
       await queryRunner.manager.createQueryBuilder()
         .insert()
-        .into('${tableData.tableName}')
+        .into('${this.getTypeOrmTableReference(tableData.tableName, tableData.schemaName)}')
         .values(${rowsContent})
         .execute();${postInsert}
     }
@@ -167,15 +215,65 @@ export class ${seedMigrationName} implements MigrationInterface {
   }
 }
 `;
-          files.push({
-            fileName: seedFileName,
-            content: seedContent,
-          });
+      seedFiles.push({
+        fileName: seedFileName,
+        content: seedContent,
+      });
+    }
+
+    if (!disableForeignKeys) {
+      for (const table of sortedTables) {
+        if (table.columns.length === 0 || table.foreignKeys.length === 0) {
+          continue;
         }
+
+        counter++;
+        const migrationName = `AddFks${this.formatModelName(getQualifiedTableName(table))}${timestamp + counter}`;
+        const fileName = `${timestamp + counter}-${migrationName}.ts`;
+        const tableReference = this.getTypeOrmTableReference(table.name, table.schemaName);
+
+        const content = `import { MigrationInterface, QueryRunner, TableForeignKey } from 'typeorm';
+
+export class ${migrationName} implements MigrationInterface {
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    try {
+${table.foreignKeys
+  .map(
+    (fk) => `      await queryRunner.createForeignKey('${tableReference}', new TableForeignKey({
+        name: '${fk.name}',
+        columnNames: ['${fk.columns.join("', '")}'],
+        referencedTableName: '${fk.referencedTable}',
+        ${fk.referencedTableSchemaName ? `referencedSchema: '${fk.referencedTableSchemaName}',` : ''}
+        referencedColumnNames: ['${fk.referencedColumns.join("', '")}'],
+        onDelete: '${fk.deleteRule || 'NO ACTION'}',
+        onUpdate: '${fk.updateRule || 'NO ACTION'}',
+      }));`,
+  )
+  .join('\n')}
+    } catch (error) {
+      console.warn('Skipping FK creation for table ${table.name} due to error:', error.message);
+    }
+  }
+
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    try {
+${table.foreignKeys
+  .map((fk) => `      await queryRunner.dropForeignKey('${tableReference}', '${fk.name}');`)
+  .join('\n')}
+    } catch (error) {
+      console.warn('Skipping FK removal for table ${table.name} due to error:', error.message);
+    }
+  }
+}
+`;
+        foreignKeyFiles.push({
+          fileName,
+          content,
+        });
       }
     }
 
-    return files;
+    return [...files, ...seedFiles, ...foreignKeyFiles];
   }
 
   async generateDataMigrations(data: TableData[]): Promise<GeneratedFile[]> {
@@ -186,7 +284,9 @@ export class ${seedMigrationName} implements MigrationInterface {
     let counter = 0;
     for (const tableData of data) {
       counter++;
-      const migrationName = `Seed${this.formatModelName(tableData.tableName)}${timestamp + counter}`;
+      const migrationName = `Seed${this.formatModelName(
+        getQualifiedTableName({ name: tableData.tableName, schemaName: tableData.schemaName }),
+      )}${timestamp + counter}`;
       const fileName = `${timestamp + counter}-${migrationName}.ts`;
 
       const rows = filterAutoIncrementColumns(tableData);
@@ -218,7 +318,7 @@ export class ${migrationName} implements MigrationInterface {
     if (${rows.length} > 0) {${preInsert}
       await queryRunner.manager.createQueryBuilder()
         .insert()
-        .into('${tableData.tableName}')
+        .into('${this.getTypeOrmTableReference(tableData.tableName, tableData.schemaName)}')
         .values(${rowsContent})
         .execute();${postInsert}
     }
@@ -242,10 +342,16 @@ export class ${migrationName} implements MigrationInterface {
     return name.charAt(0).toUpperCase() + name.slice(1);
   }
 
-  private mapType(
-    col: ColumnMetadata,
-  ): { type: string; length?: string; tsType: 'string' | 'number' | 'boolean' | 'Date' } {
-    const lower = col.dataType.toLowerCase();
+  private getTypeOrmTableReference(tableName: string, schemaName?: string): string {
+    return schemaName ? `${schemaName}.${tableName}` : tableName;
+  }
+
+  private mapType(col: ColumnMetadata): {
+    type: string;
+    length?: string;
+    tsType: 'string' | 'number' | 'boolean' | 'Date' | 'Buffer';
+  } {
+    const lower = getEffectiveDataType(col).toLowerCase();
 
     if (lower.includes('int')) return { type: 'int', tsType: 'number' };
     if (lower.includes('bool')) return { type: 'boolean', tsType: 'boolean' };
@@ -281,6 +387,18 @@ export class ${migrationName} implements MigrationInterface {
     if (lower.includes('char')) {
       return this.withLength('char', col.maxLength, 'string');
     }
+    if (lower.includes('image')) {
+      return { type: 'image', tsType: 'Buffer' };
+    }
+    if (lower.includes('varbinary')) {
+      return this.withLength('varbinary', col.maxLength, 'Buffer');
+    }
+    if (lower.includes('binary')) {
+      return this.withLength('binary', col.maxLength, 'Buffer');
+    }
+    if (lower.includes('blob')) {
+      return { type: 'blob', tsType: 'Buffer' };
+    }
 
     return { type: 'varchar', tsType: 'string' };
   }
@@ -288,8 +406,12 @@ export class ${migrationName} implements MigrationInterface {
   private withLength(
     type: string,
     maxLength: number | null | undefined,
-    tsType: 'string' | 'number' | 'boolean' | 'Date',
-  ): { type: string; length?: string; tsType: 'string' | 'number' | 'boolean' | 'Date' } {
+    tsType: 'string' | 'number' | 'boolean' | 'Date' | 'Buffer',
+  ): {
+    type: string;
+    length?: string;
+    tsType: 'string' | 'number' | 'boolean' | 'Date' | 'Buffer';
+  } {
     if (maxLength && maxLength > 0) {
       return { type, length: String(maxLength), tsType };
     }
@@ -319,7 +441,10 @@ export class ${migrationName} implements MigrationInterface {
 
   private generateMigrationColumn(col: ColumnMetadata): string {
     const mappedType = this.mapType(col);
-    const parts = [`      name: '${col.name}'`, `      type: '${mappedType.type}'`];
+    const parts = [
+      `      name: '${col.name}'`,
+      `      type: '${this.getMigrationType(col, mappedType.type)}'`,
+    ];
 
     if (col.isPrimaryKey) parts.push('      isPrimary: true');
     if (col.isAutoIncrement)
@@ -339,10 +464,18 @@ ${parts.join(',\n')}
       }`;
   }
 
+  private getMigrationType(col: ColumnMetadata, fallbackType: string): string {
+    if (!col.aliasTypeName) {
+      return fallbackType;
+    }
+
+    return formatMssqlQualifiedName(col.aliasTypeSchema ?? 'dbo', col.aliasTypeName);
+  }
+
   private formatTypeOrmDefaultValue(col: ColumnMetadata): string | null {
     const classification = classifyDatabaseDefault(
       col.defaultValue ?? '',
-      inferDefaultLogicalType(col.dataType),
+      inferEffectiveDefaultLogicalType(col),
     );
 
     switch (classification.kind) {
@@ -362,4 +495,53 @@ ${parts.join(',\n')}
     }
   }
 
+  private generateAliasTypeMigration(
+    migrationName: string,
+    aliasType: NonNullable<DatabaseSchema['aliasTypes']>[number],
+  ): string {
+    const qualifiedName = formatMssqlQualifiedName(aliasType.schemaName, aliasType.name);
+    const typeReference = formatMssqlTypeReference(aliasType);
+    const nullability = aliasType.isNullable ? 'NULL' : 'NOT NULL';
+
+    return `import { MigrationInterface, QueryRunner } from 'typeorm';
+
+export class ${migrationName} implements MigrationInterface {
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(\`IF TYPE_ID(N'${qualifiedName}') IS NULL EXEC(N'CREATE TYPE ${qualifiedName} FROM ${typeReference} ${nullability}');\`);
+  }
+
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(\`IF TYPE_ID(N'${qualifiedName}') IS NOT NULL DROP TYPE ${qualifiedName};\`);
+  }
+}
+`;
+  }
+
+  private generateSchemaMigration(migrationName: string, schemaName: string): string {
+    const escapedSchemaName = schemaName.replaceAll("'", "''");
+    const escapedMssqlSchemaName = schemaName.replaceAll(']', ']]');
+    const escapedPostgresSchemaName = schemaName.replaceAll('"', '""');
+
+    return `import { MigrationInterface, QueryRunner } from 'typeorm';
+
+export class ${migrationName} implements MigrationInterface {
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    const dialect = queryRunner.connection.driver.options.type;
+
+    if (dialect === 'mssql') {
+      await queryRunner.query(\`IF SCHEMA_ID(N'${escapedSchemaName}') IS NULL EXEC(N'CREATE SCHEMA [${escapedMssqlSchemaName}]');\`);
+      return;
+    }
+
+    if (dialect === 'postgres') {
+      await queryRunner.query(\`CREATE SCHEMA IF NOT EXISTS "${escapedPostgresSchemaName}"\`);
+    }
+  }
+
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    // Intentionally left as a no-op to avoid dropping pre-existing schemas.
+  }
+}
+`;
+  }
 }

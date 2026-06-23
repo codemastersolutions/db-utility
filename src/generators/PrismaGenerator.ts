@@ -1,5 +1,6 @@
 import { ColumnMetadata, DatabaseSchema } from '../types/introspection';
-import { classifyDatabaseDefault, inferDefaultLogicalType } from '../utils/DefaultValueUtils';
+import { getEffectiveDataType, inferEffectiveDefaultLogicalType } from '../utils/ColumnTypeUtils';
+import { classifyDatabaseDefault } from '../utils/DefaultValueUtils';
 import { getGeneratableIndexes } from '../utils/IndexUtils';
 import { GeneratedFile, SchemaGenerator } from './GeneratorTypes';
 
@@ -23,7 +24,7 @@ export class PrismaGenerator implements SchemaGenerator {
       lines.push(`model ${this.formatModelName(table.name)} {`);
 
       for (const col of table.columns) {
-        const type = this.mapType(col.dataType);
+        const type = this.mapType(col);
         const modifiers = this.getModifiers(col);
         lines.push(`  ${col.name} ${type}${modifiers}`);
       }
@@ -63,12 +64,14 @@ export class PrismaGenerator implements SchemaGenerator {
     return name.charAt(0).toUpperCase() + name.slice(1);
   }
 
-  private mapType(dataType: string): string {
-    const lower = dataType.toLowerCase();
+  private mapType(col: ColumnMetadata): string {
+    const lower = getEffectiveDataType(col).toLowerCase();
     if (lower.includes('int')) return 'Int';
     if (lower.includes('char') || lower.includes('text')) return 'String';
     if (lower.includes('bool')) return 'Boolean';
     if (lower.includes('date') || lower.includes('time')) return 'DateTime';
+    if (lower.includes('image') || lower.includes('binary') || lower.includes('blob'))
+      return 'Bytes';
     if (lower.includes('float') || lower.includes('double') || lower.includes('decimal'))
       return 'Float'; // Decimal is better but Float for simplicity
     return 'String'; // Fallback
@@ -110,7 +113,7 @@ export class PrismaGenerator implements SchemaGenerator {
   private formatPrismaDefaultValue(col: ColumnMetadata): string | null {
     const classification = classifyDatabaseDefault(
       col.defaultValue ?? '',
-      inferDefaultLogicalType(col.dataType),
+      inferEffectiveDefaultLogicalType(col),
     );
 
     switch (classification.kind) {

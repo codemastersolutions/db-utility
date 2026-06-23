@@ -1,6 +1,7 @@
 import { IDatabaseConnector, DatabaseType } from '../types/database';
 import { DatabaseSchema, TableData } from '../types/introspection';
 import { DataTableConfig } from '../config/AppConfig';
+import { buildTableKey, formatMssqlQualifiedTableName } from '../utils/TableNameUtils';
 
 export class DataExtractor {
   constructor(
@@ -20,15 +21,16 @@ export class DataExtractor {
       const disableIdentity =
         typeof tableConfig === 'string' ? undefined : tableConfig.disableIdentity;
 
-      const targetName = tableName.toLowerCase();
-      const table = schema.tables.find((t) => t.name.toLowerCase() === targetName);
+      const [requestedSchemaName, requestedTableName] = this.parseRequestedTableName(tableName);
+      const targetKey = buildTableKey(requestedSchemaName, requestedTableName);
+      const table = schema.tables.find((entry) => buildTableKey(entry.schemaName, entry.name) === targetKey);
 
       if (!table) {
         console.warn(`Table ${tableName} not found in schema, skipping.`);
         continue;
       }
 
-      const quotedName = this.quoteIdentifier(table.name);
+      const quotedName = this.quoteIdentifier(table);
       let sql = `SELECT * FROM ${quotedName}`;
 
       if (whereClause) {
@@ -41,6 +43,7 @@ export class DataExtractor {
         });
         result.push({
           tableName: table.name,
+          schemaName: table.schemaName,
           columns: table.columns,
           rows,
           disableIdentity,
@@ -53,16 +56,25 @@ export class DataExtractor {
     return result;
   }
 
-  private quoteIdentifier(name: string): string {
+  private parseRequestedTableName(value: string): [string | undefined, string] {
+    const parts = value.split('.');
+    if (parts.length === 2) {
+      return [parts[0], parts[1]];
+    }
+
+    return [undefined, value];
+  }
+
+  private quoteIdentifier(table: { name: string; schemaName?: string }): string {
     switch (this.type) {
       case 'postgres':
-        return `"${name}"`;
+        return table.schemaName ? `"${table.schemaName}"."${table.name}"` : `"${table.name}"`;
       case 'mysql':
-        return `\`${name}\``;
+        return table.schemaName ? `\`${table.schemaName}\`.\`${table.name}\`` : `\`${table.name}\``;
       case 'mssql':
-        return `[${name}]`;
+        return formatMssqlQualifiedTableName(table);
       default:
-        return `"${name}"`;
+        return `"${table.name}"`;
     }
   }
 }

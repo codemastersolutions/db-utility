@@ -53,8 +53,64 @@ describe('Identity Generation', () => {
     expect(files[0].fileName).toContain('seed-Users.js');
     expect(seedContent).toContain('const dialect = queryInterface.sequelize.getDialect();');
     expect(seedContent).toContain("if (dialect === 'mssql')");
-    expect(seedContent).toContain('SET IDENTITY_INSERT [Users] ON;');
-    expect(seedContent).toContain('SET IDENTITY_INSERT [Users] OFF;');
+    expect(seedContent).toContain('SET IDENTITY_INSERT [dbo].[Users] ON;');
+    expect(seedContent).toContain('SET IDENTITY_INSERT [dbo].[Users] OFF;');
+  });
+
+  it('SequelizeGenerator should revive Buffer values in seed migrations', async () => {
+    const generator = new SequelizeGenerator();
+    const files = await generator.generateDataMigrations([
+      {
+        tableName: 'Users',
+        columns: [
+          ...mockSchema.tables[0].columns,
+          {
+            name: 'avatar',
+            dataType: 'image',
+            isPrimaryKey: false,
+            isAutoIncrement: false,
+            isNullable: true,
+            hasDefault: false,
+            isUnique: false,
+          },
+        ],
+        rows: [{ name: 'Alice', avatar: Buffer.from([1, 2, 3]) }],
+      },
+    ]);
+
+    const seedContent = files[0].content;
+
+    expect(seedContent).toContain('function reviveSeedValue(value)');
+    expect(seedContent).toContain('const data = reviveSeedRows([');
+    expect(seedContent).toContain('"type": "Buffer"');
+    expect(seedContent).toContain('return Buffer.from(value.data);');
+  });
+
+  it('SequelizeGenerator should emit hex literals for Buffer values in MSSQL identity batches', async () => {
+    const generator = new SequelizeGenerator();
+    const files = await generator.generateDataMigrations([
+      {
+        tableName: 'Users',
+        columns: [
+          ...mockSchema.tables[0].columns,
+          {
+            name: 'avatar',
+            dataType: 'image',
+            isPrimaryKey: false,
+            isAutoIncrement: false,
+            isNullable: true,
+            hasDefault: false,
+            isUnique: false,
+          },
+        ],
+        rows: [{ id: 1, name: 'Alice', avatar: Buffer.from([1, 2, 3]) }],
+        disableIdentity: true,
+      },
+    ]);
+
+    const seedContent = files[0].content;
+
+    expect(seedContent).toContain('0x010203');
   });
 
   it('TypeORMGenerator should include identity reset for Postgres when disableIdentity is true', async () => {

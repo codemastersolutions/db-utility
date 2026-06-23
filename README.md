@@ -111,7 +111,8 @@ The configuration file allows you to define CLI language, output directories, na
     "fileNamePattern": "timestamp-prefix",
     "data": true,
     "dataTables": ["users", { "table": "logs", "where": "level = 'ERROR'" }],
-    "backup": true
+    "backup": true,
+    "disableForeignKeys": false
   },
   "connection": {
     "type": "postgres",
@@ -192,6 +193,18 @@ The `disableIdentity` option (default: `false`) allows inserting explicit values
 - **PostgreSQL**: Resets the sequence value after insertion using `setval` so subsequent inserts don't fail.
 - **Other Databases (MySQL, SQLite)**: Includes the identity column in the insert payload (these databases typically update the auto-increment counter automatically).
 
+### Foreign Key Migration Configuration
+
+Set `migrations.disableForeignKeys` to `true` to skip generating `add-fks-*` migration files. The default value is `false`.
+
+```json
+{
+  "migrations": {
+    "disableForeignKeys": true
+  }
+}
+```
+
 ### Multiple Connections
 
 You can define multiple connections within the `connections` property and use them in the CLI with the `--conn <name>` flag.
@@ -235,6 +248,9 @@ DB_UTILITY_MIGRATIONS_DATA_TABLES=users,roles
 
 # Migration Backup (true/false)
 DB_UTILITY_MIGRATIONS_BACKUP=true
+
+# Disable foreign key migration generation (true/false)
+DB_UTILITY_MIGRATIONS_DISABLE_FOREIGN_KEYS=true
 
 # Database Connection (Fallback/Base)
 DB_TYPE=postgres
@@ -326,8 +342,11 @@ dbutility migrations --target <orm> [options] [connection-options]
 | `--output <dir>`    | Output directory                                                     | No                                                   |
 | `--data`            | Generate data migration (seeds) along with schema (Overrides config) | No                                                   |
 | `--only-data`       | Generate ONLY data migrations                                        | No                                                   |
+| `--disable-foreign-keys` | Disable generation of foreign key migration files (`add-fks-*`) | No                                                   |
 | `--tables <tables>` | Comma-separated list of tables for data export (Overrides config)    | Yes (if `--data` or `--only-data` and not in config) |
 | `--test`            | Run test command after migration generation                          | No                                                   |
+
+Priority for `disableForeignKeys`: CLI flag `--disable-foreign-keys` > `dbutility.config.json` > `.env`. Default: `false`.
 
 #### `test`
 

@@ -285,4 +285,165 @@ describe('MssqlIntrospector', () => {
     expect(foreignKey?.columns).toEqual(['CODCOLIGADACONTRATADA', 'CODCONTRATADA']);
     expect(foreignKey?.referencedColumns).toEqual(['CODCOLIGADA', 'CODCFO']);
   });
+
+  it('should load alias types and preserve the primitive type for alias-backed columns', async () => {
+    const connector: IDatabaseConnector = {
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      isConnected: vi.fn(),
+      getVersion: vi.fn(),
+      query: vi
+        .fn()
+        .mockResolvedValueOnce([{ table_name: 'GIMAGEM' }])
+        .mockResolvedValueOnce([
+          {
+            table_name: 'GIMAGEM',
+            column_name: 'IMAGEM',
+            data_type: 'DIMAGEM',
+            primitive_data_type: 'image',
+            alias_type_name: 'DIMAGEM',
+            alias_type_schema: 'dbo',
+            is_nullable: 'YES',
+            column_default: null,
+            character_maximum_length: null,
+            numeric_precision: null,
+            numeric_scale: null,
+            is_identity: 0,
+          },
+        ])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          {
+            type_name: 'DIMAGEM',
+            schema_name: 'dbo',
+            base_data_type: 'image',
+            max_length: null,
+            numeric_precision: null,
+            numeric_scale: null,
+            is_nullable: true,
+          },
+        ]),
+    };
+
+    const introspector = new MssqlIntrospector(connector);
+    const schema = await introspector.introspectSchema();
+    const column = schema.tables[0]?.columns[0];
+
+    expect(column?.dataType).toBe('DIMAGEM');
+    expect(column?.primitiveDataType).toBe('image');
+    expect(column?.aliasTypeName).toBe('DIMAGEM');
+    expect(column?.aliasTypeSchema).toBe('dbo');
+    expect(schema.aliasTypes).toEqual([
+      {
+        name: 'DIMAGEM',
+        schemaName: 'dbo',
+        baseDataType: 'image',
+        maxLength: null,
+        numericPrecision: null,
+        numericScale: null,
+        isNullable: true,
+      },
+    ]);
+  });
+
+  it('should keep homonymous tables from different schemas separated', async () => {
+    const connector: IDatabaseConnector = {
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      isConnected: vi.fn(),
+      getVersion: vi.fn(),
+      query: vi
+        .fn()
+        .mockResolvedValueOnce([
+          { schema_name: 'dbo', table_name: 'GUSUARIO' },
+          { schema_name: 'rm', table_name: 'GUSUARIO' },
+        ])
+        .mockResolvedValueOnce([
+          {
+            schema_name: 'dbo',
+            table_name: 'GUSUARIO',
+            column_name: 'CODUSUARIO',
+            data_type: 'varchar',
+            is_nullable: 'NO',
+            column_default: null,
+            character_maximum_length: 20,
+            numeric_precision: null,
+            numeric_scale: null,
+            is_identity: 0,
+          },
+          {
+            schema_name: 'rm',
+            table_name: 'GUSUARIO',
+            column_name: 'LOGID',
+            data_type: 'bigint',
+            is_nullable: 'NO',
+            column_default: null,
+            character_maximum_length: null,
+            numeric_precision: 19,
+            numeric_scale: 0,
+            is_identity: 0,
+          },
+        ])
+        .mockResolvedValueOnce([
+          { schema_name: 'dbo', table_name: 'GUSUARIO', column_name: 'CODUSUARIO' },
+          { schema_name: 'rm', table_name: 'GUSUARIO', column_name: 'LOGID' },
+        ])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]),
+    };
+
+    const introspector = new MssqlIntrospector(connector);
+    const schema = await introspector.introspectSchema();
+    const dboUser = schema.tables.find(
+      (table) => table.schemaName === 'dbo' && table.name === 'GUSUARIO',
+    );
+    const rmUser = schema.tables.find(
+      (table) => table.schemaName === 'rm' && table.name === 'GUSUARIO',
+    );
+
+    expect(schema.tables).toHaveLength(2);
+    expect(dboUser?.columns.map((column) => column.name)).toEqual(['CODUSUARIO']);
+    expect(rmUser?.columns.map((column) => column.name)).toEqual(['LOGID']);
+    expect(dboUser?.columns[0]?.isPrimaryKey).toBe(true);
+    expect(rmUser?.columns[0]?.isPrimaryKey).toBe(true);
+  });
+
+  it('should skip tables that have no introspected columns', async () => {
+    const connector: IDatabaseConnector = {
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      isConnected: vi.fn(),
+      getVersion: vi.fn(),
+      query: vi
+        .fn()
+        .mockResolvedValueOnce([
+          { schema_name: 'dbo', table_name: 'dtproperties' },
+          { schema_name: 'dbo', table_name: 'Users' },
+        ])
+        .mockResolvedValueOnce([
+          {
+            schema_name: 'dbo',
+            table_name: 'Users',
+            column_name: 'id',
+            data_type: 'int',
+            is_nullable: 'NO',
+            column_default: null,
+            character_maximum_length: null,
+            numeric_precision: 10,
+            numeric_scale: 0,
+            is_identity: 0,
+          },
+        ])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]),
+    };
+
+    const introspector = new MssqlIntrospector(connector);
+    const schema = await introspector.introspectSchema();
+
+    expect(schema.tables.map((table) => table.name)).toEqual(['Users']);
+  });
 });

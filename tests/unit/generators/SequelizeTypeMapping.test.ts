@@ -154,4 +154,182 @@ describe('SequelizeGenerator Type Mapping', () => {
     expect(content).toContain('isActive: {');
     expect(content).toContain('type: DataTypes.BOOLEAN');
   });
+
+  it('should create alias type migrations before table creation and preserve the alias type in migrations', async () => {
+    const schema: DatabaseSchema = {
+      aliasTypes: [
+        {
+          name: 'DIMAGEM',
+          schemaName: 'dbo',
+          baseDataType: 'image',
+          isNullable: true,
+        },
+      ],
+      tables: [
+        {
+          name: 'GIMAGEM',
+          columns: [
+            {
+              name: 'IMAGEM',
+              dataType: 'DIMAGEM',
+              primitiveDataType: 'image',
+              aliasTypeName: 'DIMAGEM',
+              aliasTypeSchema: 'dbo',
+              isNullable: true,
+              hasDefault: false,
+              isPrimaryKey: false,
+              isUnique: false,
+              isAutoIncrement: false,
+            },
+          ],
+          indexes: [],
+          foreignKeys: [],
+        },
+      ],
+    };
+
+    const files = await generator.generateMigrations(schema);
+    const models = await generator.generate(schema);
+
+    expect(files[0]?.fileName).toContain('create-type-dbo-DIMAGEM');
+    expect(files[0]?.content).toContain('CREATE TYPE [dbo].[DIMAGEM] FROM image NULL');
+    expect(files[1]?.fileName).toContain('create-GIMAGEM');
+    expect(files[1]?.content).toContain('IMAGEM: {');
+    expect(files[1]?.content).toContain('type: "[dbo].[DIMAGEM]"');
+    expect(models[0]?.content).toContain('type: DataTypes.BLOB');
+  });
+
+  it('should generate schema-aware table references for homonymous MSSQL tables', async () => {
+    const schema: DatabaseSchema = {
+      tables: [
+        {
+          name: 'GUSUARIO',
+          schemaName: 'dbo',
+          columns: [
+            {
+              name: 'CODUSUARIO',
+              dataType: 'varchar',
+              maxLength: 20,
+              isNullable: false,
+              hasDefault: false,
+              isPrimaryKey: true,
+              isUnique: false,
+              isAutoIncrement: false,
+            },
+          ],
+          indexes: [
+            { name: 'PKGUSUARIO', columns: ['CODUSUARIO'], isPrimary: true, isUnique: true },
+          ],
+          foreignKeys: [],
+        },
+        {
+          name: 'GUSUARIO',
+          schemaName: 'rm',
+          columns: [
+            {
+              name: 'LOGID',
+              dataType: 'bigint',
+              isNullable: false,
+              hasDefault: false,
+              isPrimaryKey: true,
+              isUnique: false,
+              isAutoIncrement: false,
+            },
+          ],
+          indexes: [
+            {
+              name: 'PK__GUSUARIO__E39E279EA197A050',
+              columns: ['LOGID'],
+              isPrimary: true,
+              isUnique: true,
+            },
+          ],
+          foreignKeys: [],
+        },
+      ],
+    };
+
+    const files = await generator.generateMigrations(schema);
+
+    expect(files).toHaveLength(3);
+    expect(files[0]?.fileName).toContain('create-schema-rm');
+    expect(files[1]?.fileName).toContain('create-GUSUARIO');
+    expect(files[1]?.content).toContain("{ tableName: 'GUSUARIO', schema: 'dbo' }");
+    expect(files[2]?.fileName).toContain('create-rm_GUSUARIO');
+    expect(files[2]?.content).toContain("{ tableName: 'GUSUARIO', schema: 'rm' }");
+    expect(files[1]?.content).toContain("name: 'PKGUSUARIO'");
+    expect(files[2]?.content).toContain("name: 'PK__GUSUARIO__E39E279EA197A050'");
+  });
+
+  it('should skip migrations for tables without columns', async () => {
+    const schema: DatabaseSchema = {
+      tables: [
+        {
+          name: 'dtproperties',
+          schemaName: 'dbo',
+          columns: [],
+          indexes: [],
+          foreignKeys: [],
+        },
+        {
+          name: 'Users',
+          schemaName: 'dbo',
+          columns: [
+            {
+              name: 'id',
+              dataType: 'int',
+              isNullable: false,
+              hasDefault: false,
+              isPrimaryKey: true,
+              isUnique: false,
+              isAutoIncrement: false,
+            },
+          ],
+          indexes: [{ name: 'PKUsers', columns: ['id'], isPrimary: true, isUnique: true }],
+          foreignKeys: [],
+        },
+      ],
+    };
+
+    const files = await generator.generateMigrations(schema);
+
+    expect(files).toHaveLength(1);
+    expect(files[0]?.fileName).toContain('create-Users');
+    expect(files[0]?.fileName).not.toContain('dtproperties');
+    expect(files[0]?.content).not.toContain("tableName: 'dtproperties'");
+  });
+
+  it('should create non-default schemas before tables', async () => {
+    const schema: DatabaseSchema = {
+      tables: [
+        {
+          name: 'AggregatedCounter',
+          schemaName: 'HangFire',
+          columns: [
+            {
+              name: 'Key',
+              dataType: 'varchar',
+              maxLength: 100,
+              isNullable: false,
+              hasDefault: false,
+              isPrimaryKey: true,
+              isUnique: false,
+              isAutoIncrement: false,
+            },
+          ],
+          indexes: [
+            { name: 'PKAggregatedCounter', columns: ['Key'], isPrimary: true, isUnique: true },
+          ],
+          foreignKeys: [],
+        },
+      ],
+    };
+
+    const files = await generator.generateMigrations(schema);
+
+    expect(files[0]?.fileName).toContain('create-schema-HangFire');
+    expect(files[0]?.content).toContain("IF SCHEMA_ID(N'HangFire') IS NULL");
+    expect(files[1]?.fileName).toContain('create-HangFire_AggregatedCounter');
+    expect(files[1]?.content).toContain("{ tableName: 'AggregatedCounter', schema: 'HangFire' }");
+  });
 });

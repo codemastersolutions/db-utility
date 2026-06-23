@@ -101,4 +101,82 @@ describe('TypeORMGenerator Type Mapping', () => {
 
     expect(model.content).toContain("@Column({ type: 'datetime', nullable: true })");
   });
+
+  it('should create alias type migrations before table creation and preserve the alias type in migrations', async () => {
+    const schema: DatabaseSchema = {
+      aliasTypes: [
+        {
+          name: 'DIMAGEM',
+          schemaName: 'dbo',
+          baseDataType: 'image',
+          isNullable: true,
+        },
+      ],
+      tables: [
+        {
+          name: 'GIMAGEM',
+          columns: [
+            {
+              name: 'IMAGEM',
+              dataType: 'DIMAGEM',
+              primitiveDataType: 'image',
+              aliasTypeName: 'DIMAGEM',
+              aliasTypeSchema: 'dbo',
+              isNullable: true,
+              hasDefault: false,
+              isPrimaryKey: false,
+              isUnique: false,
+              isAutoIncrement: false,
+            },
+          ],
+          indexes: [],
+          foreignKeys: [],
+        },
+      ],
+    };
+
+    const files = await generator.generateMigrations(schema);
+    const models = await generator.generate(schema);
+
+    expect(files[0]?.fileName).toContain('CreateTypeDboDIMAGEM');
+    expect(files[0]?.content).toContain('CREATE TYPE [dbo].[DIMAGEM] FROM image NULL');
+    expect(files[1]?.content).toContain("name: 'IMAGEM'");
+    expect(files[1]?.content).toContain("type: '[dbo].[DIMAGEM]'");
+    expect(models[0]?.content).toContain("@Column({ type: 'image', nullable: true })");
+  });
+
+  it('should create non-default schemas before tables', async () => {
+    const schema: DatabaseSchema = {
+      tables: [
+        {
+          name: 'AggregatedCounter',
+          schemaName: 'HangFire',
+          columns: [
+            {
+              name: 'Key',
+              dataType: 'varchar',
+              maxLength: 100,
+              isNullable: false,
+              hasDefault: false,
+              isPrimaryKey: true,
+              isUnique: false,
+              isAutoIncrement: false,
+            },
+          ],
+          indexes: [
+            { name: 'PKAggregatedCounter', columns: ['Key'], isPrimary: true, isUnique: true },
+          ],
+          foreignKeys: [],
+        },
+      ],
+    };
+
+    const files = await generator.generateMigrations(schema);
+
+    expect(files[0]?.fileName).toContain('CreateSchemaHangFire');
+    expect(files[0]?.content).toContain("IF SCHEMA_ID(N'HangFire') IS NULL");
+    expect(files[1]?.fileName).toContain('CreateHangFire_AggregatedCounter');
+    expect(files[1]?.content).toContain("schema: 'HangFire'");
+    expect(files[1]?.content).toContain("name: 'AggregatedCounter'");
+  });
 });

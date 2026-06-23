@@ -85,16 +85,15 @@ describe('Interleaved Generation', () => {
     // No data for Posts to test partial seeding
   ];
 
-  it('SequelizeGenerator should interleave seeds', async () => {
+  it('SequelizeGenerator should create tables before seeds and foreign keys', async () => {
     const generator = new SequelizeGenerator();
     const files = await generator.generateMigrations(mockSchema, mockData);
 
     // Expected order:
     // 1. Create Users
-    // 2. Seed Users
-    // 3. Create Posts
+    // 2. Create Posts
+    // 3. Seed Users
     // 4. Add FKs Posts
-    // (No seed for Posts)
 
     expect(files).toHaveLength(4);
 
@@ -102,27 +101,28 @@ describe('Interleaved Generation', () => {
     const sortedFiles = files.toSorted((a, b) => a.fileName.localeCompare(b.fileName));
 
     expect(sortedFiles[0].fileName).toContain('create-Users');
-    expect(sortedFiles[1].fileName).toContain('seed-Users');
-    expect(sortedFiles[2].fileName).toContain('create-Posts');
+    expect(sortedFiles[1].fileName).toContain('create-Posts');
+    expect(sortedFiles[2].fileName).toContain('seed-Users');
     expect(sortedFiles[3].fileName).toContain('add-fks-Posts');
 
     // Verify content logic (briefly)
-    expect(sortedFiles[1].content).toContain('bulkInsert');
-    expect(sortedFiles[1].content).toContain('Alice');
+    expect(sortedFiles[2].content).toContain('bulkInsert');
+    expect(sortedFiles[2].content).toContain('Alice');
     // Auto-increment column 'id' should be filtered out
-    expect(sortedFiles[1].content).not.toContain('"id": 1');
+    expect(sortedFiles[2].content).not.toContain('"id": 1');
   });
 
-  it('TypeORMGenerator should interleave seeds', async () => {
+  it('TypeORMGenerator should create tables before seeds and foreign keys', async () => {
     const generator = new TypeORMGenerator();
     const files = await generator.generateMigrations(mockSchema, mockData);
 
     // Expected order:
     // 1. CreateUsers
-    // 2. SeedUsers
-    // 3. CreatePosts
+    // 2. CreatePosts
+    // 3. SeedUsers
+    // 4. AddFksPosts
 
-    expect(files).toHaveLength(3);
+    expect(files).toHaveLength(4);
 
     // TypeORM filenames use timestamps, check logical ordering by sorting
     const sortedFiles = files.toSorted((a, b) => {
@@ -133,12 +133,13 @@ describe('Interleaved Generation', () => {
     });
 
     expect(sortedFiles[0].fileName).toContain('CreateUsers');
-    expect(sortedFiles[1].fileName).toContain('SeedUsers');
-    expect(sortedFiles[2].fileName).toContain('CreatePosts');
+    expect(sortedFiles[1].fileName).toContain('CreatePosts');
+    expect(sortedFiles[2].fileName).toContain('SeedUsers');
+    expect(sortedFiles[3].fileName).toContain('AddFksPosts');
 
-    expect(sortedFiles[1].content).toContain('Alice');
+    expect(sortedFiles[2].content).toContain('Alice');
     // Auto-increment column 'id' should be filtered out
-    expect(sortedFiles[1].content).not.toContain('"id": 1');
+    expect(sortedFiles[2].content).not.toContain('"id": 1');
   });
 
   it('should handle case-insensitive table matching', async () => {
@@ -156,5 +157,25 @@ describe('Interleaved Generation', () => {
     const seedFile = files.find((f) => f.fileName.includes('seed-Users'));
     expect(seedFile).toBeDefined();
     expect(seedFile?.content).toContain('Bob');
+  });
+
+  it('SequelizeGenerator should skip foreign key files when disabled', async () => {
+    const generator = new SequelizeGenerator();
+    const files = await generator.generateMigrations(mockSchema, mockData, {
+      disableForeignKeys: true,
+    });
+
+    expect(files).toHaveLength(3);
+    expect(files.some((file) => file.fileName.includes('add-fks'))).toBe(false);
+  });
+
+  it('TypeORMGenerator should skip foreign key files when disabled', async () => {
+    const generator = new TypeORMGenerator();
+    const files = await generator.generateMigrations(mockSchema, mockData, {
+      disableForeignKeys: true,
+    });
+
+    expect(files).toHaveLength(3);
+    expect(files.some((file) => file.fileName.includes('AddFks'))).toBe(false);
   });
 });

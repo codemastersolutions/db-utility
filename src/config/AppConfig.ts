@@ -31,6 +31,7 @@ export interface AppConfig {
     data?: boolean;
     dataTables?: (string | DataTableConfig)[];
     backup?: boolean;
+    disableForeignKeys?: boolean;
   };
 }
 
@@ -49,6 +50,7 @@ const defaultConfig: AppConfig = {
     data: false,
     dataTables: [],
     backup: false,
+    disableForeignKeys: false,
   },
 };
 
@@ -117,13 +119,16 @@ export class AppConfigLoader {
     const migrationsData = fileMigrations?.data ?? envMigrations?.data;
     const migrationsDataTables = fileMigrations?.dataTables ?? envMigrations?.dataTables;
     const migrationsBackup = fileMigrations?.backup ?? envMigrations?.backup;
+    const migrationsDisableForeignKeys =
+      fileMigrations?.disableForeignKeys ?? envMigrations?.disableForeignKeys;
 
     if (
       migrationsOutputDir ||
       migrationsFileNamePatternRaw ||
       migrationsData !== undefined ||
       migrationsDataTables ||
-      migrationsBackup !== undefined
+      migrationsBackup !== undefined ||
+      migrationsDisableForeignKeys !== undefined
     ) {
       const fileNamePattern: 'timestamp-prefix' | 'prefix-timestamp' =
         migrationsFileNamePatternRaw === 'prefix-timestamp'
@@ -136,6 +141,9 @@ export class AppConfigLoader {
         ...(migrationsData === undefined ? {} : { data: migrationsData }),
         ...(migrationsDataTables ? { dataTables: migrationsDataTables } : {}),
         ...(migrationsBackup === undefined ? {} : { backup: migrationsBackup }),
+        ...(migrationsDisableForeignKeys === undefined
+          ? {}
+          : { disableForeignKeys: migrationsDisableForeignKeys }),
       };
     }
 
@@ -183,6 +191,9 @@ export class AppConfigLoader {
       process.env.DB_UTILITY_MIGRATIONS_DATA_TABLES || process.env.DBUTILITY_MIGRATIONS_DATA_TABLES;
     const rawMigrationsBackup =
       process.env.DB_UTILITY_MIGRATIONS_BACKUP || process.env.DBUTILITY_MIGRATIONS_BACKUP;
+    const rawMigrationsDisableForeignKeys =
+      process.env.DB_UTILITY_MIGRATIONS_DISABLE_FOREIGN_KEYS ||
+      process.env.DBUTILITY_MIGRATIONS_DISABLE_FOREIGN_KEYS;
 
     const config: Partial<AppConfig> = {};
 
@@ -209,7 +220,8 @@ export class AppConfigLoader {
       rawMigrationsFileNamePattern ||
       rawMigrationsData ||
       rawMigrationsDataTables ||
-      rawMigrationsBackup
+      rawMigrationsBackup ||
+      rawMigrationsDisableForeignKeys
     ) {
       const fileNamePattern: 'timestamp-prefix' | 'prefix-timestamp' =
         rawMigrationsFileNamePattern === 'prefix-timestamp'
@@ -223,6 +235,9 @@ export class AppConfigLoader {
         : undefined;
 
       const backup = rawMigrationsBackup ? rawMigrationsBackup === 'true' : undefined;
+      const disableForeignKeys = rawMigrationsDisableForeignKeys
+        ? rawMigrationsDisableForeignKeys === 'true'
+        : undefined;
 
       config.migrations = {
         fileNamePattern,
@@ -230,6 +245,7 @@ export class AppConfigLoader {
         ...(data === undefined ? {} : { data }),
         ...(dataTables ? { dataTables } : {}),
         ...(backup === undefined ? {} : { backup }),
+        ...(disableForeignKeys === undefined ? {} : { disableForeignKeys }),
       };
     }
 
@@ -263,6 +279,8 @@ export class AppConfigLoader {
     const dataTables = raw.migrations?.dataTables ?? defaultConfig.migrations.dataTables;
 
     const backup = raw.migrations?.backup ?? defaultConfig.migrations.backup;
+    const disableForeignKeys =
+      raw.migrations?.disableForeignKeys ?? defaultConfig.migrations.disableForeignKeys;
 
     return {
       language,
@@ -276,6 +294,7 @@ export class AppConfigLoader {
         data,
         dataTables,
         backup,
+        disableForeignKeys,
         ...(migrationsOutputDir ? { outputDir: migrationsOutputDir } : {}),
       },
     };

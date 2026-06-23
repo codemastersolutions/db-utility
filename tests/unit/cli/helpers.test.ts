@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   buildIntrospectionWarnings,
+  resolveDisableForeignKeys,
   resolveMigrationOutputDir,
 } from '../../../src/cli/helpers';
 import { AppConfig } from '../../../src/config/AppConfig';
@@ -106,5 +107,47 @@ describe('CLI Helpers - buildIntrospectionWarnings', () => {
       'index:LPUBLIC:LXLPUBLIC_01:33',
       'metadata-hint',
     ]);
+  });
+});
+
+describe('CLI Helpers - resolveDisableForeignKeys', () => {
+  const baseConfig: AppConfig = {
+    language: 'en',
+    introspection: { outputDir: 'intro' },
+    migrations: {
+      outputDir: 'migrations',
+      fileNamePattern: 'timestamp-prefix',
+      disableForeignKeys: false,
+    },
+  };
+
+  it('deve priorizar a flag da CLI quando habilitada', () => {
+    const result = resolveDisableForeignKeys(true, {
+      ...baseConfig,
+      migrations: {
+        ...baseConfig.migrations,
+        disableForeignKeys: false,
+      },
+    });
+
+    expect(result).toBe(true);
+  });
+
+  it('deve usar a configuração do arquivo quando a flag não for informada', () => {
+    const result = resolveDisableForeignKeys(undefined, {
+      ...baseConfig,
+      migrations: {
+        ...baseConfig.migrations,
+        disableForeignKeys: true,
+      },
+    });
+
+    expect(result).toBe(true);
+  });
+
+  it('deve retornar false por padrão quando nada for configurado', () => {
+    const result = resolveDisableForeignKeys(undefined, baseConfig);
+
+    expect(result).toBe(false);
   });
 });

@@ -9,7 +9,11 @@ import { ConnectionFactory } from '../database/ConnectionFactory';
 import { DbUtilitySecurityError } from '../database/SqlSafety';
 import { DbUtilityError } from '../errors/DbUtilityError';
 import { GeneratorWriter } from '../generators/GeneratorWriter';
-import { DataMigrationGenerator } from '../generators/GeneratorTypes';
+import {
+  DataMigrationGenerator,
+  MigrationGenerationOptions,
+  MigrationGenerator,
+} from '../generators/GeneratorTypes';
 import { MongooseGenerator } from '../generators/MongooseGenerator';
 import { PrismaGenerator } from '../generators/PrismaGenerator';
 import { SequelizeGenerator } from '../generators/SequelizeGenerator';
@@ -27,7 +31,11 @@ const appConfig = AppConfigLoader.load();
 const messages = getMessages(appConfig.language);
 
 import { VersionChecker } from './VersionChecker';
-import { buildIntrospectionWarnings, resolveMigrationOutputDir } from './helpers';
+import {
+  buildIntrospectionWarnings,
+  resolveDisableForeignKeys,
+  resolveMigrationOutputDir,
+} from './helpers';
 
 const getPackageVersion = (): string => {
   try {
@@ -142,6 +150,7 @@ interface CliOptions {
   tables?: string;
   onlyData?: boolean;
   test?: boolean;
+  disableForeignKeys?: boolean;
 }
 
 const runTest = async (options: {
@@ -318,6 +327,7 @@ addConnectionOptions(migrateCommand)
   .option('--output <dir>', 'Output directory')
   .option('--data', 'Generate data migration')
   .option('--only-data', 'Generate only data migration')
+  .option('--disable-foreign-keys', 'Disable foreign key migration generation')
   .option('--tables <tables>', 'Comma separated list of tables to export data from')
   .option('--test', 'Run tests after migration')
   .action(async (options: CliOptions) => {
@@ -344,6 +354,9 @@ addConnectionOptions(migrateCommand)
       const isDataEnabled = options.data || appConfig.migrations.data;
       const generateData = options.onlyData || isDataEnabled;
       const generateSchema = !options.onlyData;
+      const migrationOptions: MigrationGenerationOptions = {
+        disableForeignKeys: resolveDisableForeignKeys(options.disableForeignKeys, appConfig),
+      };
 
       let extractedData: any[] = [];
       if (generateData) {
@@ -382,8 +395,7 @@ addConnectionOptions(migrateCommand)
           throw new Error(`Target ${target} does not support migration generation`);
         }
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const migrationGenerator = generator as any;
+        const migrationGenerator = generator as MigrationGenerator;
 
         console.log(`Generating migrations for ${target}...`);
         // Pass extractedData if available (interleaved generation)
@@ -392,6 +404,7 @@ addConnectionOptions(migrateCommand)
         const files = await migrationGenerator.generateMigrations(
           schema,
           isDataEnabled ? extractedData : undefined,
+          migrationOptions,
         );
 
         GeneratorWriter.clean(outputDir);

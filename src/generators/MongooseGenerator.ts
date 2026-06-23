@@ -2,7 +2,8 @@ import {
   ColumnMetadata,
   DatabaseSchema,
 } from '../types/introspection';
-import { classifyDatabaseDefault, inferDefaultLogicalType } from '../utils/DefaultValueUtils';
+import { getEffectiveDataType, inferEffectiveDefaultLogicalType } from '../utils/ColumnTypeUtils';
+import { classifyDatabaseDefault } from '../utils/DefaultValueUtils';
 import { getGeneratableIndexes } from '../utils/IndexUtils';
 import { GeneratedFile, SchemaGenerator } from './GeneratorTypes';
 
@@ -16,7 +17,7 @@ export class MongooseGenerator implements SchemaGenerator {
       const content = `import { Schema, model, Document } from 'mongoose';
 
 export interface I${className} extends Document {
-${table.columns.map((c) => `  ${c.name}: ${this.getTsType(c.dataType)};`).join('\n')}
+${table.columns.map((c) => `  ${c.name}: ${this.getTsType(c)};`).join('\n')}
 }
 
 const ${className}Schema = new Schema<I${className}>({
@@ -51,16 +52,18 @@ export const ${className} = model<I${className}>('${className}', ${className}Sch
     return name.charAt(0).toUpperCase() + name.slice(1);
   }
 
-  private getTsType(dataType: string): string {
-    const lower = dataType.toLowerCase();
+  private getTsType(col: ColumnMetadata): string {
+    const lower = getEffectiveDataType(col).toLowerCase();
     if (lower.includes('int') || lower.includes('float') || lower.includes('decimal')) return 'number';
     if (lower.includes('bool')) return 'boolean';
     if (lower.includes('date') || lower.includes('time')) return 'Date';
+    if (lower.includes('image') || lower.includes('binary') || lower.includes('blob'))
+      return 'Buffer';
     return 'string';
   }
 
   private generateFieldDefinition(col: ColumnMetadata): string {
-    const type = this.getMongooseType(col.dataType);
+    const type = this.getMongooseType(col);
     const parts = [`    type: ${type}`];
 
     if (!col.isNullable) parts.push('    required: true');
@@ -77,18 +80,20 @@ export const ${className} = model<I${className}>('${className}', ${className}Sch
     return `  ${col.name}: {\n${parts.join(',\n')}\n  }`;
   }
 
-  private getMongooseType(dataType: string): string {
-    const lower = dataType.toLowerCase();
+  private getMongooseType(col: ColumnMetadata): string {
+    const lower = getEffectiveDataType(col).toLowerCase();
     if (lower.includes('int') || lower.includes('float') || lower.includes('decimal')) return 'Number';
     if (lower.includes('bool')) return 'Boolean';
     if (lower.includes('date') || lower.includes('time')) return 'Date';
+    if (lower.includes('image') || lower.includes('binary') || lower.includes('blob'))
+      return 'Buffer';
     return 'String';
   }
 
   private formatMongooseDefaultValue(col: ColumnMetadata): string | null {
     const classification = classifyDatabaseDefault(
       col.defaultValue ?? '',
-      inferDefaultLogicalType(col.dataType),
+      inferEffectiveDefaultLogicalType(col),
     );
 
     switch (classification.kind) {

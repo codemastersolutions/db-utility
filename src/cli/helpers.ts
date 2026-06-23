@@ -19,6 +19,17 @@ export const resolveMigrationOutputDir = (
   return join(cwd, 'exports', 'migrations');
 };
 
+export const resolveDisableForeignKeys = (
+  cliDisableForeignKeys: boolean | undefined,
+  appConfig: AppConfig,
+): boolean => {
+  if (cliDisableForeignKeys === true) {
+    return true;
+  }
+
+  return appConfig.migrations.disableForeignKeys ?? false;
+};
+
 export interface IntrospectionWarningMessages {
   schemaLimitSummary: string;
   tablesOverColumnLimit: (count: number) => string;

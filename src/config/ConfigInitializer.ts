@@ -17,6 +17,7 @@ interface InitialFileConfig {
   migrations?: {
     outputDir: string;
     fileNamePattern: 'timestamp-prefix' | 'prefix-timestamp';
+    disableForeignKeys?: boolean;
   };
   connection?: Partial<DatabaseConfig>;
   connections?: Record<string, Partial<DatabaseConfig>>;
@@ -24,6 +25,11 @@ interface InitialFileConfig {
 
 const defaultConfig: InitialFileConfig = {
   language: 'pt-BR',
+  migrations: {
+    outputDir: 'db-utility-migrations',
+    fileNamePattern: 'timestamp-prefix',
+    disableForeignKeys: false,
+  },
   connection: {
     type: 'mysql',
     host: 'localhost',
