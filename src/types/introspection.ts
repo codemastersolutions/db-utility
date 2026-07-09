@@ -62,6 +62,6 @@ export interface TableData {
   tableName: string;
   schemaName?: string;
   columns: ColumnMetadata[];
-  rows: Record<string, any>[];
+  rows: Record<string, unknown>[];
   disableIdentity?: boolean;
 }

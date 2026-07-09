@@ -33,13 +33,17 @@ const messages = getMessages(appConfig.language);
 import { VersionChecker } from './VersionChecker';
 import {
   buildIntrospectionWarnings,
+  filterSchemaByDataTables,
   getMigrationConfigs,
-  resolveMigrationConnectionName,
-  resolveMigrationBackup,
   resolveDisableForeignKeys,
+  resolveDisableTableExistsCheck,
+  resolveMigrationBackup,
+  resolveExportOnlyInDataTables,
+  resolveMigrationConnectionName,
   resolveMigrationOutputDir,
   resolveShouldRunMigrationTests,
 } from './helpers';
+import { TableData } from '../types/introspection';
 
 const getPackageVersion = (): string => {
   try {
@@ -156,6 +160,7 @@ interface CliOptions {
   test?: boolean;
   backup?: boolean;
   disableForeignKeys?: boolean;
+  disableTableExistsCheck?: boolean;
 }
 
 const runTest = async (options: {
@@ -334,6 +339,10 @@ addConnectionOptions(migrateCommand)
   .option('--only-data', 'Generate only data migration')
   .option('--backup', 'Export database backup from container after automatic test execution')
   .option('--disable-foreign-keys', 'Disable foreign key migration generation')
+  .option(
+    '--disable-table-exists-check',
+    'Disable the default existing-table guard in create-table migrations',
+  )
   .option('--tables <tables>', 'Comma separated list of tables to export data from')
   .option('--test', 'Run tests after migration')
   .action(async (options: CliOptions) => {
@@ -375,6 +384,14 @@ addConnectionOptions(migrateCommand)
 
         const generator = getGenerator(target);
 
+        const exportOnlyInDataTables = resolveExportOnlyInDataTables(migrationConfig);
+        const configuredDataTables = migrationConfig.dataTables || [];
+        if (exportOnlyInDataTables && configuredDataTables.length === 0) {
+          throw new Error(
+            'You must configure config.migrations.dataTables when migrations.exportOnlyInDataTables is true',
+          );
+        }
+
         const isDataEnabled = options.data || migrationConfig.data;
         const generateData = options.onlyData || isDataEnabled;
         const generateSchema = !options.onlyData;
@@ -383,13 +400,21 @@ addConnectionOptions(migrateCommand)
             options.disableForeignKeys,
             migrationConfig,
           ),
+          disableTableExistsCheck: resolveDisableTableExistsCheck(
+            options.disableTableExistsCheck,
+            migrationConfig,
+          ),
         };
+        const schemaToGenerate = exportOnlyInDataTables
+          ? filterSchemaByDataTables(schema, configuredDataTables)
+          : schema;
 
-        let extractedData: any[] = [];
+        let extractedData: TableData[] = [];
         if (generateData) {
-          const tables = options.tables
+          const splitedTables = options.tables
             ? options.tables.split(',').map((t) => t.trim())
-            : migrationConfig.dataTables || [];
+            : configuredDataTables;
+          const tables = exportOnlyInDataTables ? configuredDataTables : splitedTables;
 
           if (tables.length === 0) {
             throw new Error(
@@ -427,7 +452,7 @@ addConnectionOptions(migrateCommand)
 
           console.log(`Generating migrations for ${target} (${itemLabel})...`);
           const files = await migrationGenerator.generateMigrations(
-            schema,
+            schemaToGenerate,
             isDataEnabled ? extractedData : undefined,
             migrationOptions,
           );

@@ -2,8 +2,11 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   buildIntrospectionWarnings,
+  filterSchemaByDataTables,
   getMigrationConfigs,
   resolveDisableForeignKeys,
+  resolveDisableTableExistsCheck,
+  resolveExportOnlyInDataTables,
   resolveMigrationBackup,
   resolveMigrationConnectionName,
   resolveMigrationOutputDir,
@@ -129,6 +132,7 @@ describe('CLI Helpers - resolveDisableForeignKeys', () => {
     outputDir: 'migrations',
     fileNamePattern: 'timestamp-prefix',
     disableForeignKeys: false,
+    disableTableExistsCheck: false,
   };
   const baseConfig: AppConfig = {
     language: 'en',
@@ -162,6 +166,93 @@ describe('CLI Helpers - resolveDisableForeignKeys', () => {
 
   it('deve retornar false por padrão quando nada for configurado', () => {
     const result = resolveDisableForeignKeys(undefined, baseConfig);
+
+    expect(result).toBe(false);
+  });
+
+  it('deve forçar true quando exportOnlyInDataTables estiver habilitado', () => {
+    const result = resolveDisableForeignKeys(undefined, {
+      ...baseConfig,
+      migrations: {
+        ...baseMigrationConfig,
+        exportOnlyInDataTables: true,
+        disableForeignKeys: false,
+      },
+    });
+
+    expect(result).toBe(true);
+  });
+});
+
+describe('CLI Helpers - resolveDisableTableExistsCheck', () => {
+  const baseMigrationConfig: MigrationConfig = {
+    outputDir: 'migrations',
+    fileNamePattern: 'timestamp-prefix',
+    disableTableExistsCheck: false,
+  };
+  const baseConfig: AppConfig = {
+    language: 'en',
+    introspection: { outputDir: 'intro' },
+    migrations: baseMigrationConfig,
+  };
+
+  it('deve priorizar a flag da CLI quando habilitada', () => {
+    const result = resolveDisableTableExistsCheck(true, {
+      ...baseConfig,
+      migrations: {
+        ...baseMigrationConfig,
+        disableTableExistsCheck: false,
+      },
+    });
+
+    expect(result).toBe(true);
+  });
+
+  it('deve usar a configuração do arquivo quando a flag não for informada', () => {
+    const result = resolveDisableTableExistsCheck(undefined, {
+      ...baseConfig,
+      migrations: {
+        ...baseMigrationConfig,
+        disableTableExistsCheck: true,
+      },
+    });
+
+    expect(result).toBe(true);
+  });
+
+  it('deve retornar false por padrão quando nada for configurado', () => {
+    const result = resolveDisableTableExistsCheck(undefined, baseConfig);
+
+    expect(result).toBe(false);
+  });
+});
+
+describe('CLI Helpers - resolveExportOnlyInDataTables', () => {
+  const baseMigrationConfig: MigrationConfig = {
+    outputDir: 'migrations',
+    fileNamePattern: 'timestamp-prefix',
+    exportOnlyInDataTables: false,
+  };
+  const baseConfig: AppConfig = {
+    language: 'en',
+    introspection: { outputDir: 'intro' },
+    migrations: baseMigrationConfig,
+  };
+
+  it('deve usar a configuração do arquivo quando habilitada', () => {
+    const result = resolveExportOnlyInDataTables({
+      ...baseConfig,
+      migrations: {
+        ...baseMigrationConfig,
+        exportOnlyInDataTables: true,
+      },
+    });
+
+    expect(result).toBe(true);
+  });
+
+  it('deve retornar false por padrão quando nada for configurado', () => {
+    const result = resolveExportOnlyInDataTables(baseConfig);
 
     expect(result).toBe(false);
   });
@@ -201,6 +292,41 @@ describe('CLI Helpers - resolveMigrationBackup', () => {
     const result = resolveMigrationBackup(undefined, baseConfig);
 
     expect(result).toBe(false);
+  });
+});
+
+describe('CLI Helpers - filterSchemaByDataTables', () => {
+  it('deve manter apenas as tabelas listadas em dataTables', () => {
+    const schema: DatabaseSchema = {
+      tables: [
+        {
+          name: 'Users',
+          columns: [],
+          indexes: [],
+          foreignKeys: [],
+        },
+        {
+          name: 'Posts',
+          columns: [],
+          indexes: [],
+          foreignKeys: [],
+        },
+        {
+          name: 'AuditLog',
+          schemaName: 'audit',
+          columns: [],
+          indexes: [],
+          foreignKeys: [],
+        },
+      ],
+    };
+
+    const filtered = filterSchemaByDataTables(schema, ['users', { table: 'audit.AuditLog' }]);
+
+    expect(filtered.tables.map((table) => `${table.schemaName ?? 'dbo'}.${table.name}`)).toEqual([
+      'dbo.Users',
+      'audit.AuditLog',
+    ]);
   });
 });
 

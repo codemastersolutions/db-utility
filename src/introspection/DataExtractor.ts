@@ -23,7 +23,9 @@ export class DataExtractor {
 
       const [requestedSchemaName, requestedTableName] = this.parseRequestedTableName(tableName);
       const targetKey = buildTableKey(requestedSchemaName, requestedTableName);
-      const table = schema.tables.find((entry) => buildTableKey(entry.schemaName, entry.name) === targetKey);
+      const table = schema.tables.find(
+        (entry) => buildTableKey(entry.schemaName, entry.name) === targetKey,
+      );
 
       if (!table) {
         console.warn(`Table ${tableName} not found in schema, skipping.`);
@@ -38,7 +40,7 @@ export class DataExtractor {
       }
 
       try {
-        const rows = await this.connector.query<Record<string, any>>(sql, [], {
+        const rows = await this.connector.query<Record<string, unknown>>(sql, [], {
           bypassSafety: true,
         });
         result.push({

@@ -20,6 +20,8 @@ export interface MigrationConfig {
   dataTables?: (string | DataTableConfig)[];
   backup?: boolean;
   disableForeignKeys?: boolean;
+  disableTableExistsCheck?: boolean;
+  exportOnlyInDataTables?: boolean;
   connectionName?: string;
 }
 
@@ -53,6 +55,8 @@ const defaultMigrationConfig: MigrationConfig = {
   dataTables: [],
   backup: false,
   disableForeignKeys: false,
+  disableTableExistsCheck: false,
+  exportOnlyInDataTables: false,
 };
 
 const defaultConfig: AppConfig = {
@@ -181,6 +185,9 @@ export class AppConfigLoader {
     const rawMigrationsDisableForeignKeys =
       process.env.DB_UTILITY_MIGRATIONS_DISABLE_FOREIGN_KEYS ||
       process.env.DBUTILITY_MIGRATIONS_DISABLE_FOREIGN_KEYS;
+    const rawMigrationsDisableTableExistsCheck =
+      process.env.DB_UTILITY_MIGRATIONS_DISABLE_TABLE_EXISTS_CHECK ||
+      process.env.DBUTILITY_MIGRATIONS_DISABLE_TABLE_EXISTS_CHECK;
 
     const config: RawAppConfig = {};
 
@@ -208,7 +215,8 @@ export class AppConfigLoader {
       rawMigrationsData ||
       rawMigrationsDataTables ||
       rawMigrationsBackup ||
-      rawMigrationsDisableForeignKeys
+      rawMigrationsDisableForeignKeys ||
+      rawMigrationsDisableTableExistsCheck
     ) {
       const fileNamePattern: 'timestamp-prefix' | 'prefix-timestamp' =
         rawMigrationsFileNamePattern === 'prefix-timestamp'
@@ -225,6 +233,9 @@ export class AppConfigLoader {
       const disableForeignKeys = rawMigrationsDisableForeignKeys
         ? rawMigrationsDisableForeignKeys === 'true'
         : undefined;
+      const disableTableExistsCheck = rawMigrationsDisableTableExistsCheck
+        ? rawMigrationsDisableTableExistsCheck === 'true'
+        : undefined;
 
       config.migrations = this.mergeMigrationConfig(
         {
@@ -233,6 +244,7 @@ export class AppConfigLoader {
           ...(dataTables ? { dataTables } : {}),
           ...(backup === undefined ? {} : { backup }),
           ...(disableForeignKeys === undefined ? {} : { disableForeignKeys }),
+          ...(disableTableExistsCheck === undefined ? {} : { disableTableExistsCheck }),
         },
         undefined,
         fileNamePattern,
@@ -297,6 +309,9 @@ export class AppConfigLoader {
     const backup = fileMigration?.backup ?? envMigration?.backup;
     const disableForeignKeys =
       fileMigration?.disableForeignKeys ?? envMigration?.disableForeignKeys;
+    const disableTableExistsCheck =
+      fileMigration?.disableTableExistsCheck ?? envMigration?.disableTableExistsCheck;
+    const exportOnlyInDataTables = fileMigration?.exportOnlyInDataTables;
     const connectionName = fileMigration?.connectionName;
 
     return {
@@ -307,6 +322,8 @@ export class AppConfigLoader {
       ...(dataTables ? { dataTables } : {}),
       ...(backup === undefined ? {} : { backup }),
       ...(disableForeignKeys === undefined ? {} : { disableForeignKeys }),
+      ...(disableTableExistsCheck === undefined ? {} : { disableTableExistsCheck }),
+      ...(exportOnlyInDataTables === undefined ? {} : { exportOnlyInDataTables }),
       ...(connectionName ? { connectionName } : {}),
     };
   }
@@ -326,6 +343,10 @@ export class AppConfigLoader {
     const dataTables = raw?.dataTables ?? defaultMigrationConfig.dataTables;
     const backup = raw?.backup ?? defaultMigrationConfig.backup;
     const disableForeignKeys = raw?.disableForeignKeys ?? defaultMigrationConfig.disableForeignKeys;
+    const disableTableExistsCheck =
+      raw?.disableTableExistsCheck ?? defaultMigrationConfig.disableTableExistsCheck;
+    const exportOnlyInDataTables =
+      raw?.exportOnlyInDataTables ?? defaultMigrationConfig.exportOnlyInDataTables;
     const connectionName = raw?.connectionName;
 
     return {
@@ -335,6 +356,8 @@ export class AppConfigLoader {
       dataTables,
       backup,
       disableForeignKeys,
+      disableTableExistsCheck,
+      exportOnlyInDataTables,
       ...(outputDir ? { outputDir } : {}),
       ...(connectionName ? { connectionName } : {}),
     };

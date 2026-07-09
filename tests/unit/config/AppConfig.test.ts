@@ -31,6 +31,8 @@ describe('AppConfigLoader', () => {
     expect(config.introspection.outputDir).toBe('db-utility-introspect');
     expect(migrationConfig.fileNamePattern).toBe('timestamp-prefix');
     expect(migrationConfig.disableForeignKeys).toBe(false);
+    expect(migrationConfig.disableTableExistsCheck).toBe(false);
+    expect(migrationConfig.exportOnlyInDataTables).toBe(false);
   });
 
   it('deve carregar idioma do arquivo de configuração json', () => {
@@ -44,6 +46,7 @@ describe('AppConfigLoader', () => {
         migrations: {
           outputDir: 'custom-migrations',
           fileNamePattern: 'prefix-timestamp',
+          exportOnlyInDataTables: true,
         },
       }),
     );
@@ -55,6 +58,7 @@ describe('AppConfigLoader', () => {
     expect(config.introspection.outputDir).toBe('custom-introspect');
     expect(migrationConfig.outputDir).toBe('custom-migrations');
     expect(migrationConfig.fileNamePattern).toBe('prefix-timestamp');
+    expect(migrationConfig.exportOnlyInDataTables).toBe(true);
   });
 
   it('deve normalizar idioma vindo das variáveis de ambiente', () => {
@@ -73,6 +77,7 @@ describe('AppConfigLoader', () => {
     process.env.DB_UTILITY_MIGRATIONS_OUTPUT_DIR = 'env-migrations';
     process.env.DB_UTILITY_MIGRATIONS_FILE_NAME_PATTERN = 'prefix-timestamp';
     process.env.DB_UTILITY_MIGRATIONS_DISABLE_FOREIGN_KEYS = 'true';
+    process.env.DB_UTILITY_MIGRATIONS_DISABLE_TABLE_EXISTS_CHECK = 'true';
 
     const config = AppConfigLoader.load();
     const migrationConfig = getPrimaryMigrationConfig(config.migrations);
@@ -82,6 +87,7 @@ describe('AppConfigLoader', () => {
     expect(migrationConfig.outputDir).toBe('env-migrations');
     expect(migrationConfig.fileNamePattern).toBe('prefix-timestamp');
     expect(migrationConfig.disableForeignKeys).toBe(true);
+    expect(migrationConfig.disableTableExistsCheck).toBe(true);
   });
 
   it('deve priorizar arquivo de configuração sobre variáveis de ambiente e complementar opções ausentes', () => {
@@ -94,6 +100,8 @@ describe('AppConfigLoader', () => {
         },
         migrations: {
           disableForeignKeys: true,
+          disableTableExistsCheck: true,
+          exportOnlyInDataTables: true,
         },
       }),
     );
@@ -102,6 +110,7 @@ describe('AppConfigLoader', () => {
     process.env.DB_UTILITY_INTROSPECTION_OUTPUT_DIR = 'env-introspect';
     process.env.DB_UTILITY_MIGRATIONS_OUTPUT_DIR = 'env-migrations';
     process.env.DB_UTILITY_MIGRATIONS_DISABLE_FOREIGN_KEYS = 'false';
+    process.env.DB_UTILITY_MIGRATIONS_DISABLE_TABLE_EXISTS_CHECK = 'false';
 
     const config = AppConfigLoader.load('dbutility.config.json');
     const migrationConfig = getPrimaryMigrationConfig(config.migrations);
@@ -110,6 +119,8 @@ describe('AppConfigLoader', () => {
     expect(config.introspection.outputDir).toBe('json-introspect');
     expect(migrationConfig.outputDir).toBe('env-migrations');
     expect(migrationConfig.disableForeignKeys).toBe(true);
+    expect(migrationConfig.disableTableExistsCheck).toBe(true);
+    expect(migrationConfig.exportOnlyInDataTables).toBe(true);
   });
 
   it('deve aceitar migrations como array e aplicar fallback do env em cada item', () => {
@@ -121,6 +132,8 @@ describe('AppConfigLoader', () => {
             outputDir: 'migrations/a',
             connectionName: 'first-db',
             disableForeignKeys: true,
+            disableTableExistsCheck: true,
+            exportOnlyInDataTables: true,
           },
           {
             outputDir: 'migrations/b',
@@ -133,6 +146,7 @@ describe('AppConfigLoader', () => {
 
     process.env.DB_UTILITY_MIGRATIONS_FILE_NAME_PATTERN = 'prefix-timestamp';
     process.env.DB_UTILITY_MIGRATIONS_BACKUP = 'true';
+    process.env.DB_UTILITY_MIGRATIONS_DISABLE_TABLE_EXISTS_CHECK = 'true';
 
     const config = AppConfigLoader.load('dbutility.config.json');
     const migrations = getMigrationConfigEntries(config.migrations);
@@ -143,6 +157,8 @@ describe('AppConfigLoader', () => {
       outputDir: 'migrations/a',
       connectionName: 'first-db',
       disableForeignKeys: true,
+      disableTableExistsCheck: true,
+      exportOnlyInDataTables: true,
       fileNamePattern: 'prefix-timestamp',
       backup: true,
     });
@@ -150,6 +166,8 @@ describe('AppConfigLoader', () => {
       outputDir: 'migrations/b',
       data: true,
       connectionName: 'second-db',
+      disableTableExistsCheck: true,
+      exportOnlyInDataTables: false,
       fileNamePattern: 'prefix-timestamp',
       backup: true,
     });

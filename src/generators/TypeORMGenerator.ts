@@ -70,6 +70,7 @@ ${table.columns.map((c) => this.generateColumnDefinition(c)).join('\n')}
     const seedFiles: GeneratedFile[] = [];
     const foreignKeyFiles: GeneratedFile[] = [];
     const disableForeignKeys = options?.disableForeignKeys ?? false;
+    const disableTableExistsCheck = options?.disableTableExistsCheck ?? false;
     const aliasTypes = getUsedAliasTypes(schema);
     const schemaNames = getUsedNonDefaultSchemaNames(schema);
     const tableDataByKey = new Map(
@@ -110,6 +111,10 @@ ${table.columns.map((c) => this.generateColumnDefinition(c)).join('\n')}
       const migrationName = `Create${this.formatModelName(getQualifiedTableName(table))}${timestamp + counter}`;
       const fileName = `${timestamp + counter}-${migrationName}.ts`;
       const indexes = getGeneratableIndexes(table.indexes);
+      const tableReference = this.getTypeOrmTableReference(table.name, table.schemaName);
+      const tableExistsCheckPart = disableTableExistsCheck
+        ? ''
+        : this.generateCreateTableExistsCheck(table.name, table.schemaName);
 
       // Check if we have a named primary key
       const pkIndex = indexes.find((idx) => idx.isPrimary);
@@ -119,6 +124,8 @@ ${table.columns.map((c) => this.generateColumnDefinition(c)).join('\n')}
 
 export class ${migrationName} implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
+    ${tableExistsCheckPart}
+
     await queryRunner.createTable(new Table({
       ${table.schemaName ? `schema: '${table.schemaName}',` : ''}
       name: '${table.name}',
@@ -131,7 +138,7 @@ ${indexes
   .filter((idx) => !idx.isPrimary)
   .map(
     (idx) =>
-      `    await queryRunner.createIndex('${this.getTypeOrmTableReference(table.name, table.schemaName)}', new TableIndex({
+      `    await queryRunner.createIndex('${tableReference}', new TableIndex({
       name: '${idx.name}',
       columnNames: ['${idx.columns.join("', '")}'],
       isUnique: ${idx.isUnique}
@@ -340,6 +347,18 @@ export class ${migrationName} implements MigrationInterface {
 
   private formatModelName(name: string): string {
     return name.charAt(0).toUpperCase() + name.slice(1);
+  }
+
+  private generateCreateTableExistsCheck(tableName: string, schemaName?: string): string {
+    const tableReference = this.getTypeOrmTableReference(tableName, schemaName);
+    const qualifiedTableName = schemaName ? `${schemaName}.${tableName}` : tableName;
+    const message = `Skipping table creation for "${qualifiedTableName}" because it already exists.`;
+
+    return `const tableExists = await queryRunner.hasTable(${JSON.stringify(tableReference)});
+    if (tableExists) {
+      console.log(${JSON.stringify(message)});
+      return;
+    }`;
   }
 
   private getTypeOrmTableReference(tableName: string, schemaName?: string): string {

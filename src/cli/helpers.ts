@@ -1,11 +1,13 @@
 import { isAbsolute, join } from 'node:path';
 import {
   AppConfig,
+  DataTableConfig,
   MigrationConfig,
   getMigrationConfigEntries,
   getPrimaryMigrationConfig,
 } from '../config/AppConfig';
 import { DatabaseSchema } from '../types/introspection';
+import { buildTableKey, getTableKey } from '../utils/TableNameUtils';
 import { analyzeSchemaLimits } from '../utils/IndexUtils';
 
 type MigrationConfigSource = AppConfig | MigrationConfig;
@@ -13,6 +15,8 @@ const fallbackMigrationConfig: MigrationConfig = {
   fileNamePattern: 'timestamp-prefix',
   backup: false,
   disableForeignKeys: false,
+  disableTableExistsCheck: false,
+  exportOnlyInDataTables: false,
 };
 
 const getMigrationConfig = (source: MigrationConfigSource): MigrationConfig => {
@@ -52,11 +56,47 @@ export const resolveDisableForeignKeys = (
   cliDisableForeignKeys: boolean | undefined,
   source: MigrationConfigSource,
 ): boolean => {
+  if (resolveExportOnlyInDataTables(source)) {
+    return true;
+  }
+
   if (cliDisableForeignKeys === true) {
     return true;
   }
 
   return getMigrationConfig(source).disableForeignKeys ?? false;
+};
+
+export const resolveDisableTableExistsCheck = (
+  cliDisableTableExistsCheck: boolean | undefined,
+  source: MigrationConfigSource,
+): boolean => {
+  if (cliDisableTableExistsCheck === true) {
+    return true;
+  }
+
+  return getMigrationConfig(source).disableTableExistsCheck ?? false;
+};
+
+export const resolveExportOnlyInDataTables = (source: MigrationConfigSource): boolean =>
+  getMigrationConfig(source).exportOnlyInDataTables ?? false;
+
+export const filterSchemaByDataTables = (
+  schema: DatabaseSchema,
+  tables: (string | DataTableConfig)[],
+): DatabaseSchema => {
+  const selectedTableKeys = new Set(
+    tables.map((entry) => {
+      const rawTableName = typeof entry === 'string' ? entry : entry.table;
+      const [schemaName, tableName] = parseRequestedTableName(rawTableName);
+      return buildTableKey(schemaName, tableName);
+    }),
+  );
+
+  return {
+    ...schema,
+    tables: schema.tables.filter((table) => selectedTableKeys.has(getTableKey(table))),
+  };
 };
 
 export const resolveMigrationBackup = (
@@ -68,6 +108,15 @@ export const resolveMigrationBackup = (
   }
 
   return getMigrationConfig(source).backup ?? false;
+};
+
+const parseRequestedTableName = (value: string): [string | undefined, string] => {
+  const parts = value.split('.');
+  if (parts.length === 2) {
+    return [parts[0], parts[1]];
+  }
+
+  return [undefined, value];
 };
 
 export const resolveShouldRunMigrationTests = (

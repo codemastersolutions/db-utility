@@ -8,7 +8,7 @@ import { TableData } from '../types/introspection';
  * @param tableData The table data containing columns definition and rows
  * @returns The rows with auto-increment columns removed
  */
-export function filterAutoIncrementColumns(tableData: TableData): Record<string, any>[] {
+export function filterAutoIncrementColumns(tableData: TableData): Record<string, unknown>[] {
   // If disableIdentity is true, we want to KEEP the auto-increment columns (meaning we insert explicit IDs)
   if (tableData.disableIdentity) {
     return tableData.rows;
@@ -23,7 +23,7 @@ export function filterAutoIncrementColumns(tableData: TableData): Record<string,
   }
 
   return tableData.rows.map((row) => {
-    const newRow: Record<string, any> = {};
+    const newRow: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(row)) {
       // Check if the key corresponds to an auto-increment column
       // We check exact match first

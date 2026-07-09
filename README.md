@@ -114,7 +114,9 @@ The `introspection.outputDir` and `migrations.outputDir` fields accept both rela
     "data": true,
     "dataTables": ["users", { "table": "logs", "where": "level = 'ERROR'" }],
     "backup": true,
-    "disableForeignKeys": false
+    "disableForeignKeys": false,
+    "disableTableExistsCheck": false,
+    "exportOnlyInDataTables": false
   },
   "connection": {
     "type": "postgres",
@@ -162,7 +164,10 @@ You can also define `connectionName` on each migration item to use a specific co
       "outputDir": "exports/migrations/tenant-a",
       "fileNamePattern": "timestamp-prefix",
       "connectionName": "tenantA",
-      "disableForeignKeys": true
+      "disableForeignKeys": true,
+      "disableTableExistsCheck": true,
+      "exportOnlyInDataTables": true,
+      "dataTables": ["users", "roles"]
     },
     {
       "outputDir": "exports/migrations/tenant-b",
@@ -258,6 +263,42 @@ Set `migrations.disableForeignKeys` to `true` to skip generating `add-fks-*` mig
 }
 ```
 
+### Existing Table Guard Configuration
+
+By default, generated create-table migrations check whether the target table already exists before calling `createTable`. If the table already exists, the migration prints a message to the terminal and returns success so execution can continue without interruption.
+
+Set `migrations.disableTableExistsCheck` to `true` to disable this guard. The default value is `false`.
+
+```json
+{
+  "migrations": {
+    "disableTableExistsCheck": true
+  }
+}
+```
+
+### Isolated Migration Export Configuration
+
+Set `migrations.exportOnlyInDataTables` to `true` to generate schema migrations only for the tables declared in `migrations.dataTables` from the configuration file. The default value is `false`.
+
+When this option is enabled:
+
+- only the tables listed in `migrations.dataTables` are exported as schema migrations;
+- `disableForeignKeys` is automatically treated as `true`;
+- the generated tables work in isolation, without foreign key migrations depending on other tables.
+- `dataTables` must be defined in the same migration config item.
+
+This option is available only in the configuration file.
+
+```json
+{
+  "migrations": {
+    "dataTables": ["users", "roles"],
+    "exportOnlyInDataTables": true
+  }
+}
+```
+
 ### Multiple Connections
 
 You can define multiple connections within the `connections` property and use them in the CLI with the `--conn <name>` flag.
@@ -304,6 +345,9 @@ DB_UTILITY_MIGRATIONS_BACKUP=true
 
 # Disable foreign key migration generation (true/false)
 DB_UTILITY_MIGRATIONS_DISABLE_FOREIGN_KEYS=true
+
+# Disable the default existing-table guard in create-table migrations (true/false)
+DB_UTILITY_MIGRATIONS_DISABLE_TABLE_EXISTS_CHECK=true
 
 # Database Connection (Fallback/Base)
 DB_TYPE=postgres
@@ -389,20 +433,23 @@ When the source schema contains wide tables or oversized index key lists, the CL
 dbutility migrations --target <orm> [options] [connection-options]
 ```
 
-| Flag                     | Description                                                          | Required                                             |
-| ------------------------ | -------------------------------------------------------------------- | ---------------------------------------------------- |
-| `--target <target>`      | Target ORM (`sequelize`, `typeorm`)                                  | Yes                                                  |
-| `--output <dir>`         | Output directory                                                     | No                                                   |
-| `--data`                 | Generate data migration (seeds) along with schema (Overrides config) | No                                                   |
-| `--only-data`            | Generate ONLY data migrations                                        | No                                                   |
-| `--backup`               | Export a database backup after the automatic migration test run      | No                                                   |
-| `--disable-foreign-keys` | Disable generation of foreign key migration files (`add-fks-*`)      | No                                                   |
-| `--tables <tables>`      | Comma-separated list of tables for data export (Overrides config)    | Yes (if `--data` or `--only-data` and not in config) |
-| `--test`                 | Run test command after migration generation                          | No                                                   |
+| Flag                           | Description                                                          | Required                                             |
+| ------------------------------ | -------------------------------------------------------------------- | ---------------------------------------------------- |
+| `--target <target>`            | Target ORM (`sequelize`, `typeorm`)                                  | Yes                                                  |
+| `--output <dir>`               | Output directory                                                     | No                                                   |
+| `--data`                       | Generate data migration (seeds) along with schema (Overrides config) | No                                                   |
+| `--only-data`                  | Generate ONLY data migrations                                        | No                                                   |
+| `--backup`                     | Export a database backup after the automatic migration test run      | No                                                   |
+| `--disable-foreign-keys`       | Disable generation of foreign key migration files (`add-fks-*`)      | No                                                   |
+| `--disable-table-exists-check` | Disable the default existing-table guard in create-table migrations  | No                                                   |
+| `--tables <tables>`            | Comma-separated list of tables for data export (Overrides config)    | Yes (if `--data` or `--only-data` and not in config) |
+| `--test`                       | Run test command after migration generation                          | No                                                   |
 
 Priority for `disableForeignKeys`: CLI flag `--disable-foreign-keys` > `dbutility.config.json` > `.env`. Default: `false`.
+Priority for `disableTableExistsCheck`: CLI flag `--disable-table-exists-check` > `dbutility.config.json` > `.env`. Default: `false`.
 Priority for `backup`: CLI flag `--backup` > `dbutility.config.json` > `.env`. Default: `false`.
 When `backup` is enabled by CLI flag, configuration file, or environment variable, the migration command automatically runs tests even without `--test`.
+By default, create-table migrations include an existing-table guard. Use `--disable-table-exists-check`, `migrations.disableTableExistsCheck`, or `DB_UTILITY_MIGRATIONS_DISABLE_TABLE_EXISTS_CHECK=true` to turn it off.
 
 #### `test`
 

@@ -27,6 +27,8 @@ describe('ConfigInitializer', () => {
       outputDir: 'db-utility-migrations',
       fileNamePattern: 'timestamp-prefix',
       disableForeignKeys: false,
+      disableTableExistsCheck: false,
+      exportOnlyInDataTables: false,
     });
   });
 

@@ -87,6 +87,7 @@ ${indexes
     const seedFiles: GeneratedFile[] = [];
     const foreignKeyFiles: GeneratedFile[] = [];
     const disableForeignKeys = options?.disableForeignKeys ?? false;
+    const disableTableExistsCheck = options?.disableTableExistsCheck ?? false;
     const aliasTypes = getUsedAliasTypes(schema);
     const schemaNames = getUsedNonDefaultSchemaNames(schema);
     const tableDataByKey = new Map(
@@ -134,6 +135,9 @@ ${indexes
       const hasAutoIncrement = table.columns.some((c) => c.isAutoIncrement);
       const indexes = getGeneratableIndexes(table.indexes);
       const tableReference = this.serializeTableReference(table.name, table.schemaName);
+      const tableExistsCheckPart = disableTableExistsCheck
+        ? ''
+        : this.generateCreateTableExistsCheck(table.name, table.schemaName);
 
       const createTablePart = `await queryInterface.createTable(${tableReference}, {
 ${table.columns.map((c) => this.generateMigrationColumn(c, !hasAutoIncrement, false)).join(',\n')}
@@ -163,7 +167,7 @@ ${table.columns.map((c) => this.generateMigrationColumn(c, !hasAutoIncrement, fa
         )
         .join('\n    ');
 
-      const upBody = [createTablePart, pkConstraintsPart, indexesPart]
+      const upBody = [tableExistsCheckPart, createTablePart, pkConstraintsPart, indexesPart]
         .filter((part) => part.trim().length > 0)
         .join('\n\n    ');
 
@@ -550,6 +554,18 @@ module.exports = {
 
   private formatModelName(name: string): string {
     return name.charAt(0).toUpperCase() + name.slice(1);
+  }
+
+  private generateCreateTableExistsCheck(tableName: string, schemaName?: string): string {
+    const tableReference = this.serializeTableReference(tableName, schemaName);
+    const qualifiedTableName = schemaName ? `${schemaName}.${tableName}` : tableName;
+    const message = `Skipping table creation for "${qualifiedTableName}" because it already exists.`;
+
+    return `const tableExists = await queryInterface.tableExists(${tableReference});
+    if (tableExists) {
+      console.log(${JSON.stringify(message)});
+      return;
+    }`;
   }
 
   private serializeTableReference(tableName: string, schemaName?: string): string {

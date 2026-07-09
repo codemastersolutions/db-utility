@@ -19,12 +19,16 @@ interface InitialFileConfig {
         outputDir: string;
         fileNamePattern: 'timestamp-prefix' | 'prefix-timestamp';
         disableForeignKeys?: boolean;
+        disableTableExistsCheck?: boolean;
+        exportOnlyInDataTables?: boolean;
         connectionName?: string;
       }
     | Array<{
         outputDir: string;
         fileNamePattern: 'timestamp-prefix' | 'prefix-timestamp';
         disableForeignKeys?: boolean;
+        disableTableExistsCheck?: boolean;
+        exportOnlyInDataTables?: boolean;
         connectionName?: string;
       }>;
   connection?: Partial<DatabaseConfig>;
@@ -37,6 +41,8 @@ const defaultConfig: InitialFileConfig = {
     outputDir: 'db-utility-migrations',
     fileNamePattern: 'timestamp-prefix',
     disableForeignKeys: false,
+    disableTableExistsCheck: false,
+    exportOnlyInDataTables: false,
   },
   connection: {
     type: 'mysql',
