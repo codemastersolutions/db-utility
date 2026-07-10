@@ -561,7 +561,30 @@ module.exports = {
     const qualifiedTableName = schemaName ? `${schemaName}.${tableName}` : tableName;
     const message = `Skipping table creation for "${qualifiedTableName}" because it already exists.`;
 
-    return `const tableExists = await queryInterface.tableExists(${tableReference});
+    return `let tableExists;
+    if (typeof queryInterface.tableExists === 'function') {
+      tableExists = await queryInterface.tableExists(${tableReference});
+    } else {
+      try {
+        await queryInterface.describeTable(${tableReference});
+        tableExists = true;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message.toLowerCase() : '';
+        const isMissingTableError =
+          errorMessage.includes('does not exist') ||
+          errorMessage.includes('no description found for') ||
+          errorMessage.includes('unknown table') ||
+          errorMessage.includes('invalid object name') ||
+          errorMessage.includes('could not be found');
+
+        if (!isMissingTableError) {
+          throw error;
+        }
+
+        tableExists = false;
+      }
+    }
+
     if (tableExists) {
       console.log(${JSON.stringify(message)});
       return;
