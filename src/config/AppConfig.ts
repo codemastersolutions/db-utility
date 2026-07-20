@@ -13,6 +13,13 @@ export interface DataTableConfig {
   disableIdentity?: boolean;
 }
 
+export interface MigrationTestDatabaseImageConfig {
+  registry?: string;
+  image: string;
+}
+
+export type MigrationTestDatabaseConfig = string | MigrationTestDatabaseImageConfig;
+
 export interface MigrationConfig {
   outputDir?: string;
   fileNamePattern: 'timestamp-prefix' | 'prefix-timestamp';
@@ -22,6 +29,7 @@ export interface MigrationConfig {
   disableForeignKeys?: boolean;
   disableTableExistsCheck?: boolean;
   exportOnlyInDataTables?: boolean;
+  testDatabase?: MigrationTestDatabaseConfig;
   connectionName?: string;
 }
 
@@ -312,6 +320,7 @@ export class AppConfigLoader {
     const disableTableExistsCheck =
       fileMigration?.disableTableExistsCheck ?? envMigration?.disableTableExistsCheck;
     const exportOnlyInDataTables = fileMigration?.exportOnlyInDataTables;
+    const testDatabase = this.normalizeMigrationTestDatabase(fileMigration?.testDatabase);
     const connectionName = fileMigration?.connectionName;
 
     return {
@@ -324,6 +333,7 @@ export class AppConfigLoader {
       ...(disableForeignKeys === undefined ? {} : { disableForeignKeys }),
       ...(disableTableExistsCheck === undefined ? {} : { disableTableExistsCheck }),
       ...(exportOnlyInDataTables === undefined ? {} : { exportOnlyInDataTables }),
+      ...(testDatabase === undefined ? {} : { testDatabase }),
       ...(connectionName ? { connectionName } : {}),
     };
   }
@@ -347,6 +357,7 @@ export class AppConfigLoader {
       raw?.disableTableExistsCheck ?? defaultMigrationConfig.disableTableExistsCheck;
     const exportOnlyInDataTables =
       raw?.exportOnlyInDataTables ?? defaultMigrationConfig.exportOnlyInDataTables;
+    const testDatabase = this.normalizeMigrationTestDatabase(raw?.testDatabase);
     const connectionName = raw?.connectionName;
 
     return {
@@ -358,9 +369,43 @@ export class AppConfigLoader {
       disableForeignKeys,
       disableTableExistsCheck,
       exportOnlyInDataTables,
+      ...(testDatabase === undefined ? {} : { testDatabase }),
       ...(outputDir ? { outputDir } : {}),
       ...(connectionName ? { connectionName } : {}),
     };
+  }
+
+  private static normalizeMigrationTestDatabase(
+    value: unknown,
+  ): MigrationTestDatabaseConfig | undefined {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      return trimmed.length > 0 ? trimmed : undefined;
+    }
+
+    if (
+      typeof value === 'object' &&
+      value !== null &&
+      'image' in value &&
+      typeof (value as { image?: unknown }).image === 'string'
+    ) {
+      const image = (value as { image: string }).image.trim();
+      const registry =
+        'registry' in value && typeof (value as { registry?: unknown }).registry === 'string'
+          ? (value as { registry: string }).registry.trim()
+          : undefined;
+
+      if (image.length === 0) {
+        return undefined;
+      }
+
+      return {
+        image,
+        ...(registry && registry.length > 0 ? { registry } : {}),
+      };
+    }
+
+    return undefined;
   }
 
   private static normalizeLanguage(value: string): AppLanguage {

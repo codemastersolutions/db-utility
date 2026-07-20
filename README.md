@@ -116,7 +116,8 @@ The `introspection.outputDir` and `migrations.outputDir` fields accept both rela
     "backup": true,
     "disableForeignKeys": false,
     "disableTableExistsCheck": false,
-    "exportOnlyInDataTables": false
+    "exportOnlyInDataTables": false,
+    "testDatabase": "2019"
   },
   "connection": {
     "type": "postgres",
@@ -167,7 +168,11 @@ You can also define `connectionName` on each migration item to use a specific co
       "disableForeignKeys": true,
       "disableTableExistsCheck": true,
       "exportOnlyInDataTables": true,
-      "dataTables": ["users", "roles"]
+      "dataTables": ["users", "roles"],
+      "testDatabase": {
+        "registry": "mcr.microsoft.com/mssql",
+        "image": "server:2019-latest"
+      }
     },
     {
       "outputDir": "exports/migrations/tenant-b",
@@ -298,6 +303,60 @@ This option is available only in the configuration file.
   }
 }
 ```
+
+### Migration Test Database Configuration
+
+Set `migrations.testDatabase` in the configuration file when you want migration tests to run against a specific database version or Docker image. This option is optional and is available only in the configuration file.
+
+You can provide only a version string, and the library keeps the database type detected by introspection:
+
+```json
+{
+  "migrations": {
+    "testDatabase": "2019"
+  }
+}
+```
+
+With version-only values such as `2019`, `8`, or `18.4`, DbUtility:
+
+- keeps the database type detected in `database-info.json`;
+- resolves the most recent available tag that matches the informed version pattern;
+- progressively removes version blocks when necessary until it finds an available image;
+- interrupts the test process with an error message if no matching Docker image is found.
+
+You can also provide an explicit image as a string:
+
+```json
+{
+  "migrations": {
+    "testDatabase": "postgres:18.4"
+  }
+}
+```
+
+String images use Docker Hub by default.
+
+You can also provide an object:
+
+```json
+{
+  "migrations": {
+    "testDatabase": {
+      "registry": "mcr.microsoft.com/mssql",
+      "image": "server:2019-latest"
+    }
+  }
+}
+```
+
+Supported object formats:
+
+- `{ "registry": "dhi.io", "image": "node:26-alpine-sfw-ent-dev" }`
+- `{ "registry": "mcr.microsoft.com/mssql", "image": "server:2019-latest" }`
+- `{ "image": "mcr.microsoft.com/mssql/server:2019-latest" }`
+
+When the object does not include `registry`, DbUtility first tries the full value from `image`. If no image is found, it retries using Docker Hub. If it still cannot find a valid image, the test process is interrupted with an error message.
 
 ### Multiple Connections
 
@@ -450,6 +509,7 @@ Priority for `disableTableExistsCheck`: CLI flag `--disable-table-exists-check` 
 Priority for `backup`: CLI flag `--backup` > `dbutility.config.json` > `.env`. Default: `false`.
 When `backup` is enabled by CLI flag, configuration file, or environment variable, the migration command automatically runs tests even without `--test`.
 By default, create-table migrations include an existing-table guard. Use `--disable-table-exists-check`, `migrations.disableTableExistsCheck`, or `DB_UTILITY_MIGRATIONS_DISABLE_TABLE_EXISTS_CHECK=true` to turn it off.
+`migrations.testDatabase` is available only in the configuration file and is used when the test engine is inferred from `database-info.json`.
 
 #### `test`
 
@@ -465,6 +525,8 @@ dbutility test --target <orm> [options]
 | `--dir <dir>`         | Directory containing migrations                                     | No       |
 | `--engines <engines>` | Docker images to test (e.g., `postgres:14,mysql:8`)                 | No       |
 | `--backup`            | Export database backup from container after test (Overrides config) | No       |
+
+When `--engines` is not provided, the `test` command also honors `migrations.testDatabase` from the configuration file.
 
 ## Usage Examples
 

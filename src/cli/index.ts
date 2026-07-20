@@ -2,7 +2,11 @@
 import { Command } from 'commander';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { AppConfigLoader, getPrimaryMigrationConfig } from '../config/AppConfig';
+import {
+  AppConfigLoader,
+  MigrationTestDatabaseConfig,
+  getPrimaryMigrationConfig,
+} from '../config/AppConfig';
 import { ConfigInitializer } from '../config/ConfigInitializer';
 import { ConfigLoader } from '../config/ConfigLoader';
 import { ConnectionFactory } from '../database/ConnectionFactory';
@@ -168,6 +172,7 @@ const runTest = async (options: {
   dir?: string;
   engines?: string;
   backup?: boolean;
+  testDatabase?: MigrationTestDatabaseConfig;
 }) => {
   const target = options.target || appConfig.target;
   if (!target) {
@@ -188,7 +193,7 @@ const runTest = async (options: {
   const tester = new MigrationTester(containerManager);
 
   const backup = options.backup ?? getPrimaryMigrationConfig(appConfig.migrations).backup;
-  await tester.test(target, migrationsDir, engines, backup);
+  await tester.test(target, migrationsDir, engines, backup, options.testDatabase);
 };
 
 const printIntrospectionWarnings = (schema: Parameters<typeof buildIntrospectionWarnings>[0]) => {
@@ -532,6 +537,7 @@ addConnectionOptions(migrateCommand)
             target,
             dir: outputDir,
             backup: backupEnabled,
+            testDatabase: migrationConfig.testDatabase,
           });
         } catch (error) {
           handleCliError(error);

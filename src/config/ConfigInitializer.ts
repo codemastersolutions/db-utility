@@ -21,6 +21,7 @@ interface InitialFileConfig {
         disableForeignKeys?: boolean;
         disableTableExistsCheck?: boolean;
         exportOnlyInDataTables?: boolean;
+        testDatabase?: string | { registry?: string; image: string };
         connectionName?: string;
       }
     | Array<{
@@ -29,6 +30,7 @@ interface InitialFileConfig {
         disableForeignKeys?: boolean;
         disableTableExistsCheck?: boolean;
         exportOnlyInDataTables?: boolean;
+        testDatabase?: string | { registry?: string; image: string };
         connectionName?: string;
       }>;
   connection?: Partial<DatabaseConfig>;

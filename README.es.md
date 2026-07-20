@@ -116,7 +116,8 @@ Los campos `introspection.outputDir` y `migrations.outputDir` aceptan rutas rela
     "backup": true,
     "disableForeignKeys": false,
     "disableTableExistsCheck": false,
-    "exportOnlyInDataTables": false
+    "exportOnlyInDataTables": false,
+    "testDatabase": "2019"
   },
   "connection": {
     "type": "postgres",
@@ -167,7 +168,11 @@ También puede definir `connectionName` en cada elemento de migración para usar
       "disableForeignKeys": true,
       "disableTableExistsCheck": true,
       "exportOnlyInDataTables": true,
-      "dataTables": ["usuarios", "roles"]
+      "dataTables": ["usuarios", "roles"],
+      "testDatabase": {
+        "registry": "mcr.microsoft.com/mssql",
+        "image": "server:2019-latest"
+      }
     },
     {
       "outputDir": "exports/migrations/tenant-b",
@@ -298,6 +303,60 @@ Esta opción está disponible solo en el archivo de configuración.
   }
 }
 ```
+
+### Configuración de la Base de Datos para la Prueba de Migraciones
+
+Defina `migrations.testDatabase` en el archivo de configuración cuando quiera que las pruebas de migraciones se ejecuten con una versión o imagen Docker específica de la base de datos. Esta opción es opcional y está disponible solo en el archivo de configuración.
+
+Puede informar solo la versión, y la librería mantiene el tipo de base de datos detectado por la introspección:
+
+```json
+{
+  "migrations": {
+    "testDatabase": "2019"
+  }
+}
+```
+
+Con valores de solo versión, como `2019`, `8` o `18.4`, DbUtility:
+
+- mantiene el tipo de base de datos detectado en `database-info.json`;
+- resuelve la etiqueta disponible más reciente que coincida con el patrón de versión informado;
+- elimina bloques de la versión progresivamente cuando es necesario hasta encontrar una imagen disponible;
+- interrumpe el proceso de prueba con un mensaje de error si no encuentra una imagen Docker compatible.
+
+También puede informar una imagen explícita como string:
+
+```json
+{
+  "migrations": {
+    "testDatabase": "postgres:18.4"
+  }
+}
+```
+
+Las strings de imagen usan Docker Hub por defecto.
+
+También puede informar un objeto:
+
+```json
+{
+  "migrations": {
+    "testDatabase": {
+      "registry": "mcr.microsoft.com/mssql",
+      "image": "server:2019-latest"
+    }
+  }
+}
+```
+
+Formatos soportados para el objeto:
+
+- `{ "registry": "dhi.io", "image": "node:26-alpine-sfw-ent-dev" }`
+- `{ "registry": "mcr.microsoft.com/mssql", "image": "server:2019-latest" }`
+- `{ "image": "mcr.microsoft.com/mssql/server:2019-latest" }`
+
+Cuando el objeto no incluye `registry`, DbUtility primero intenta usar el valor completo de `image`. Si no encuentra la imagen, vuelve a intentar usando Docker Hub. Si aun así no encuentra una imagen válida, el proceso de prueba se interrumpe con un mensaje de error.
 
 ### Múltiples Conexiones
 
@@ -450,6 +509,7 @@ Prioridad para `disableTableExistsCheck`: flag `--disable-table-exists-check` > 
 Prioridad para `backup`: flag `--backup` > `dbutility.config.json` > `.env`. Predeterminado: `false`.
 Cuando `backup` está habilitado por flag, archivo de configuración o variable de entorno, el comando de migraciones ejecuta las pruebas automáticamente incluso sin `--test`.
 De forma predeterminada, las migraciones de creación de tabla incluyen una verificación de existencia de la tabla. Use `--disable-table-exists-check`, `migrations.disableTableExistsCheck` o `DB_UTILITY_MIGRATIONS_DISABLE_TABLE_EXISTS_CHECK=true` para deshabilitarla.
+`migrations.testDatabase` está disponible solo en el archivo de configuración y se usa cuando el motor de prueba se infiere desde `database-info.json`.
 
 #### `test`
 
@@ -465,6 +525,8 @@ dbutility test --target <orm> [opciones]
 | `--dir <dir>`         | Directorio conteniendo las migraciones                                                             | No          |
 | `--engines <engines>` | Imágenes Docker para probar (ej: `postgres:14,mysql:8`)                                            | No          |
 | `--backup`            | Exporta backup de la base de datos del contenedor después de la prueba (Sobrescribe configuración) | No          |
+
+Cuando no se informa `--engines`, el comando `test` también respeta `migrations.testDatabase` del archivo de configuración.
 
 ## Ejemplos de Uso
 

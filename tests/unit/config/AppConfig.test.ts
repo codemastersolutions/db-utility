@@ -33,6 +33,7 @@ describe('AppConfigLoader', () => {
     expect(migrationConfig.disableForeignKeys).toBe(false);
     expect(migrationConfig.disableTableExistsCheck).toBe(false);
     expect(migrationConfig.exportOnlyInDataTables).toBe(false);
+    expect(migrationConfig.testDatabase).toBeUndefined();
   });
 
   it('deve carregar idioma do arquivo de configuração json', () => {
@@ -47,6 +48,7 @@ describe('AppConfigLoader', () => {
           outputDir: 'custom-migrations',
           fileNamePattern: 'prefix-timestamp',
           exportOnlyInDataTables: true,
+          testDatabase: '2019',
         },
       }),
     );
@@ -59,6 +61,7 @@ describe('AppConfigLoader', () => {
     expect(migrationConfig.outputDir).toBe('custom-migrations');
     expect(migrationConfig.fileNamePattern).toBe('prefix-timestamp');
     expect(migrationConfig.exportOnlyInDataTables).toBe(true);
+    expect(migrationConfig.testDatabase).toBe('2019');
   });
 
   it('deve normalizar idioma vindo das variáveis de ambiente', () => {
@@ -134,6 +137,10 @@ describe('AppConfigLoader', () => {
             disableForeignKeys: true,
             disableTableExistsCheck: true,
             exportOnlyInDataTables: true,
+            testDatabase: {
+              registry: 'mcr.microsoft.com/mssql',
+              image: 'server:2019-latest',
+            },
           },
           {
             outputDir: 'migrations/b',
@@ -159,6 +166,10 @@ describe('AppConfigLoader', () => {
       disableForeignKeys: true,
       disableTableExistsCheck: true,
       exportOnlyInDataTables: true,
+      testDatabase: {
+        registry: 'mcr.microsoft.com/mssql',
+        image: 'server:2019-latest',
+      },
       fileNamePattern: 'prefix-timestamp',
       backup: true,
     });

@@ -17,6 +17,15 @@ export class ContainerManager {
     }
   }
 
+  async imageExists(image: string): Promise<boolean> {
+    try {
+      await execAsync(`docker manifest inspect ${shellEscape(image)}`);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async startContainer(
     image: string,
     env: Record<string, string>,

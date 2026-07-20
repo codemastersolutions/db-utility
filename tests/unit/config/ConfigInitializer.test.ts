@@ -30,6 +30,7 @@ describe('ConfigInitializer', () => {
       disableTableExistsCheck: false,
       exportOnlyInDataTables: false,
     });
+    expect((parsed.migrations as Record<string, unknown>).testDatabase).toBeUndefined();
   });
 
   it('não deve recriar arquivo quando já existe e force = false', () => {

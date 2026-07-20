@@ -28,6 +28,32 @@ describe('ContainerManager', () => {
     expect(result).toBe(false);
   });
 
+  it('imageExists should return true when docker manifest inspect succeeds', async () => {
+    (exec as unknown as ReturnType<typeof vi.fn>).mockImplementation((cmd, cb) => {
+      cb(null, { stdout: '{}' });
+    });
+
+    const manager = new ContainerManager();
+    const result = await manager.imageExists('postgres:18.4');
+
+    expect(result).toBe(true);
+    expect(exec).toHaveBeenCalledWith(
+      "docker manifest inspect 'postgres:18.4'",
+      expect.any(Function),
+    );
+  });
+
+  it('imageExists should return false when docker manifest inspect fails', async () => {
+    (exec as unknown as ReturnType<typeof vi.fn>).mockImplementation((cmd, cb) => {
+      cb(new Error('not found'));
+    });
+
+    const manager = new ContainerManager();
+    const result = await manager.imageExists('postgres:99.99');
+
+    expect(result).toBe(false);
+  });
+
   it('startContainer should run correct docker command', async () => {
     (exec as unknown as ReturnType<typeof vi.fn>).mockImplementation((cmd, cb) => {
       cb(null, { stdout: 'container123\n' });

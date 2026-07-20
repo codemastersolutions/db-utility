@@ -8,6 +8,7 @@ import { TypeORMRunner } from './runners/TypeORMRunner';
 import { DatabaseType, DatabaseConfig } from '../types/database';
 import { ConnectionFactory } from '../database/ConnectionFactory';
 import { PackageManager, InstallScope } from '../utils/PackageManager';
+import { MigrationTestDatabaseConfig } from '../config/AppConfig';
 
 interface TestResult {
   engine: string;
@@ -21,6 +22,18 @@ interface InstallConfig {
   shouldInstall: boolean;
   scope: InstallScope;
   shouldUninstall: boolean;
+}
+
+interface TestEngineConfig {
+  type: DatabaseType;
+  version: string;
+  originalString?: string;
+  databaseName?: string;
+}
+
+interface ResolvedTestDatabaseImage {
+  image: string;
+  versionLabel: string;
 }
 
 export class MigrationTester {
@@ -37,6 +50,7 @@ export class MigrationTester {
     migrationsDir: string,
     engines?: string[],
     backup?: boolean,
+    testDatabase?: MigrationTestDatabaseConfig,
   ): Promise<void> {
     const hasDocker = await this.containerManager.checkDocker();
     if (!hasDocker) {
@@ -45,12 +59,7 @@ export class MigrationTester {
     }
 
     // Determine engines to test
-    let testEngines: {
-      type: DatabaseType;
-      version: string;
-      originalString?: string;
-      databaseName?: string;
-    }[] = [];
+    let testEngines: TestEngineConfig[] = [];
 
     if (engines && engines.length > 0) {
       testEngines = engines.map((e) => {
@@ -84,6 +93,8 @@ export class MigrationTester {
       console.error('No database engines specified and no database-info.json found.');
       return;
     }
+
+    const effectiveTestDatabase = engines && engines.length > 0 ? undefined : testDatabase;
 
     let installConfig: InstallConfig;
     try {
@@ -129,7 +140,14 @@ export class MigrationTester {
 
       for (const engine of testEngines) {
         console.log(`Testing against ${engine.type} ${engine.version}...`);
-        const result = await this.runTest(target, migrationsDir, engine, ormPath, backup);
+        const result = await this.runTest(
+          target,
+          migrationsDir,
+          engine,
+          ormPath,
+          backup,
+          effectiveTestDatabase,
+        );
         result.engine = `${result.engine} (${target} v${versionLabel})`;
         results.push(result);
       }
@@ -271,6 +289,35 @@ export class MigrationTester {
     return match ? match[1] : 'latest';
   }
 
+  private isVersionOnlyTestDatabase(
+    value: MigrationTestDatabaseConfig | undefined,
+  ): value is string {
+    return typeof value === 'string' && /^\d+(?:\.\d+)*$/.test(value.trim());
+  }
+
+  private parseImageReference(image: string): {
+    repository: string;
+    tag: string;
+    registryHost?: string;
+  } {
+    const trimmed = image.trim();
+    const lastColonIndex = trimmed.lastIndexOf(':');
+    const lastSlashIndex = trimmed.lastIndexOf('/');
+
+    const hasTag = lastColonIndex > lastSlashIndex;
+    const repository = hasTag ? trimmed.slice(0, lastColonIndex) : trimmed;
+    const tag = hasTag ? trimmed.slice(lastColonIndex + 1) : 'latest';
+    const firstSegment = repository.split('/')[0];
+    const hasRegistryHost =
+      firstSegment.includes('.') || firstSegment.includes(':') || firstSegment === 'localhost';
+
+    return {
+      repository,
+      tag,
+      ...(hasRegistryHost ? { registryHost: firstSegment } : {}),
+    };
+  }
+
   private getImageName(type: DatabaseType, version: string): string {
     if (type === 'postgres')
       return `postgres:${version === 'latest' ? 'latest' : version.split('.')[0]}`; // postgres:14
@@ -280,6 +327,258 @@ export class MigrationTester {
       return `mcr.microsoft.com/mssql/server:${v}-latest`;
     }
     return `postgres:latest`;
+  }
+
+  private getDefaultImageRepository(type: DatabaseType): string {
+    if (type === 'postgres') return 'docker.io/library/postgres';
+    if (type === 'mysql') return 'docker.io/library/mysql';
+    if (type === 'mssql') return 'mcr.microsoft.com/mssql/server';
+    return 'docker.io/library/postgres';
+  }
+
+  private getDockerHubImageReference(image: string): string {
+    const { repository, tag } = this.parseImageReference(image);
+    const normalizedRepository =
+      repository.includes('/') || repository.startsWith('docker.io/')
+        ? repository
+        : `library/${repository}`;
+    const repositoryWithoutDockerHubPrefix = normalizedRepository.replace(/^docker\.io\//, '');
+    return `docker.io/${repositoryWithoutDockerHubPrefix}:${tag}`;
+  }
+
+  private async fetchDockerHubTags(repository: string): Promise<string[]> {
+    const normalizedRepository = repository.replace(/^docker\.io\//, '');
+    const [namespace, ...repositoryParts] = normalizedRepository.includes('/')
+      ? normalizedRepository.split('/')
+      : ['library', normalizedRepository];
+    const repositoryName = repositoryParts.join('/');
+
+    if (!repositoryName) {
+      return [];
+    }
+
+    const tags: string[] = [];
+    let nextUrl = `https://hub.docker.com/v2/namespaces/${namespace}/repositories/${repositoryName}/tags?page_size=100`;
+
+    while (nextUrl) {
+      const response = await fetch(nextUrl);
+      if (!response.ok) {
+        throw new Error(`Docker Hub tag lookup failed with status ${response.status}`);
+      }
+
+      const payload = (await response.json()) as {
+        results?: Array<{ name?: string }>;
+        next?: string | null;
+      };
+
+      for (const tag of payload.results ?? []) {
+        if (typeof tag.name === 'string' && tag.name.length > 0) {
+          tags.push(tag.name);
+        }
+      }
+
+      nextUrl = payload.next ?? '';
+    }
+
+    return tags;
+  }
+
+  private async fetchRegistryTags(imageRepository: string): Promise<string[]> {
+    const { repository, registryHost } = this.parseImageReference(imageRepository);
+
+    if (!registryHost || registryHost === 'docker.io') {
+      return this.fetchDockerHubTags(imageRepository);
+    }
+
+    const repositoryPath = repository.replace(`${registryHost}/`, '');
+    const response = await fetch(`https://${registryHost}/v2/${repositoryPath}/tags/list?n=1000`);
+    if (!response.ok) {
+      throw new Error(`Registry tag lookup failed with status ${response.status}`);
+    }
+
+    const payload = (await response.json()) as { tags?: string[] };
+    return payload.tags ?? [];
+  }
+
+  private getTagVersionParts(tag: string): number[] | undefined {
+    const match = /^(\d+(?:\.\d+)*)/.exec(tag);
+    if (!match) {
+      return undefined;
+    }
+
+    return match[1].split('.').map((part) => Number.parseInt(part, 10));
+  }
+
+  private compareVersionParts(left: number[], right: number[]): number {
+    const maxLength = Math.max(left.length, right.length);
+
+    for (let index = 0; index < maxLength; index++) {
+      const leftPart = left[index] ?? -1;
+      const rightPart = right[index] ?? -1;
+
+      if (leftPart !== rightPart) {
+        return rightPart - leftPart;
+      }
+    }
+
+    return 0;
+  }
+
+  private getTagPriority(tag: string): number {
+    if (/^\d+(?:\.\d+)*$/.test(tag)) {
+      return 0;
+    }
+
+    if (/^\d+(?:\.\d+)*-latest$/.test(tag)) {
+      return 1;
+    }
+
+    if (/^\d+(?:\.\d+)*-[A-Za-z0-9._-]+$/.test(tag)) {
+      return 2;
+    }
+
+    return 3;
+  }
+
+  private resolveLatestTag(tags: string[], requestedVersion: string): string | undefined {
+    const requestedParts = requestedVersion.split('.').map((part) => Number.parseInt(part, 10));
+
+    for (let length = requestedParts.length; length >= 1; length--) {
+      const prefix = requestedParts.slice(0, length);
+      const matches = tags
+        .reduce<Array<{ tag: string; versionParts: number[] }>>((accumulator, tag) => {
+          const versionParts = this.getTagVersionParts(tag);
+          if (!Array.isArray(versionParts)) {
+            return accumulator;
+          }
+
+          if (prefix.every((part, index) => versionParts[index] === part)) {
+            accumulator.push({ tag, versionParts });
+          }
+
+          return accumulator;
+        }, [])
+        .sort((left, right) => {
+          const versionComparison = this.compareVersionParts(left.versionParts, right.versionParts);
+          if (versionComparison !== 0) {
+            return versionComparison;
+          }
+
+          const priorityComparison = this.getTagPriority(left.tag) - this.getTagPriority(right.tag);
+          if (priorityComparison !== 0) {
+            return priorityComparison;
+          }
+
+          return left.tag.length - right.tag.length || left.tag.localeCompare(right.tag);
+        });
+
+      if (matches.length > 0) {
+        return matches[0].tag;
+      }
+    }
+
+    return undefined;
+  }
+
+  private async resolveVersionBasedImage(
+    type: DatabaseType,
+    requestedVersion: string,
+  ): Promise<ResolvedTestDatabaseImage> {
+    const repository = this.getDefaultImageRepository(type);
+
+    try {
+      const tags = await this.fetchRegistryTags(repository);
+      const resolvedTag = this.resolveLatestTag(tags, requestedVersion);
+
+      if (resolvedTag) {
+        return {
+          image: `${repository}:${resolvedTag}`,
+          versionLabel: resolvedTag,
+        };
+      }
+    } catch {
+      // Falls back to direct image probing below when the registry tag listing is unavailable.
+    }
+
+    const directCandidates =
+      type === 'mssql' ? [`${requestedVersion}-latest`, requestedVersion] : [requestedVersion];
+
+    for (const candidate of directCandidates) {
+      const image = `${repository}:${candidate}`;
+      if (await this.containerManager.imageExists(image)) {
+        return {
+          image,
+          versionLabel: candidate,
+        };
+      }
+    }
+
+    throw new Error(
+      `No Docker image found for ${type} with requested version "${requestedVersion}".`,
+    );
+  }
+
+  private async resolveConfiguredImage(
+    override: Exclude<MigrationTestDatabaseConfig, undefined>,
+  ): Promise<ResolvedTestDatabaseImage> {
+    if (typeof override === 'string') {
+      const image = this.getDockerHubImageReference(override);
+      if (!(await this.containerManager.imageExists(image))) {
+        throw new Error(`No Docker image found for "${override}".`);
+      }
+
+      return {
+        image,
+        versionLabel: this.parseImageReference(image).tag,
+      };
+    }
+
+    if (override.registry) {
+      const image = `${override.registry.replace(/\/$/, '')}/${override.image}`;
+      if (!(await this.containerManager.imageExists(image))) {
+        throw new Error(`No Docker image found for "${image}".`);
+      }
+
+      return {
+        image,
+        versionLabel: this.parseImageReference(image).tag,
+      };
+    }
+
+    if (await this.containerManager.imageExists(override.image)) {
+      return {
+        image: override.image,
+        versionLabel: this.parseImageReference(override.image).tag,
+      };
+    }
+
+    const dockerHubImage = this.getDockerHubImageReference(override.image);
+    if (await this.containerManager.imageExists(dockerHubImage)) {
+      return {
+        image: dockerHubImage,
+        versionLabel: this.parseImageReference(dockerHubImage).tag,
+      };
+    }
+
+    throw new Error(`No Docker image found for "${override.image}".`);
+  }
+
+  private async resolveTestDatabaseImage(
+    engine: TestEngineConfig,
+    testDatabase?: MigrationTestDatabaseConfig,
+  ): Promise<ResolvedTestDatabaseImage> {
+    if (!testDatabase) {
+      return {
+        image: this.getImageName(engine.type, engine.version),
+        versionLabel: engine.version,
+      };
+    }
+
+    if (this.isVersionOnlyTestDatabase(testDatabase)) {
+      return this.resolveVersionBasedImage(engine.type, testDatabase.trim());
+    }
+
+    return this.resolveConfiguredImage(testDatabase);
   }
 
   private getEnv(
@@ -327,27 +626,33 @@ export class MigrationTester {
   private async runTest(
     target: string,
     migrationsDir: string,
-    engine: { type: DatabaseType; version: string; databaseName?: string },
+    engine: TestEngineConfig,
     ormPath?: string,
     backup?: boolean,
+    testDatabase?: MigrationTestDatabaseConfig,
   ): Promise<TestResult> {
     const startTime = Date.now();
     const password = randomBytes(18).toString('base64url');
     const port = Math.floor(Math.random() * (60000 - 10000) + 10000); // Random port
-    const image = this.getImageName(engine.type, engine.version);
+    let image = this.getImageName(engine.type, engine.version);
+    let versionLabel = engine.version;
     const dbName = engine.databaseName || 'testdb';
     const backupFileName = `${dbName}.${engine.type === 'mssql' ? 'bak' : 'sql'}`;
 
     let containerId: string | null = null;
 
     try {
+      const resolvedTestDatabase = await this.resolveTestDatabaseImage(engine, testDatabase);
+      image = resolvedTestDatabase.image;
+      versionLabel = resolvedTestDatabase.versionLabel;
+
       await this.ensureDialectDependencies(target, engine.type);
 
       console.log(`Starting container ${image} on port ${port}...`);
       console.log('Backup flag:', backup);
 
       if (backup) {
-        const friendlyName = this.getFriendlyName(engine.type, engine.version);
+        const friendlyName = this.getFriendlyName(engine.type, versionLabel);
         const backupDir = join(process.cwd(), 'exports', 'backups', friendlyName);
 
         if (!existsSync(backupDir)) {
@@ -393,7 +698,7 @@ export class MigrationTester {
 
       if (backup && containerId) {
         console.log('Exporting database backup...');
-        const friendlyName = this.getFriendlyName(engine.type, engine.version);
+        const friendlyName = this.getFriendlyName(engine.type, versionLabel);
         const backupDir = join(process.cwd(), 'exports', 'backups', friendlyName);
         const backupFile = join(backupDir, backupFileName);
 
@@ -410,7 +715,10 @@ export class MigrationTester {
         if (engine.type === 'mssql') {
           const containerBackupPath = `/var/opt/mssql/backup/${backupFileName}`;
 
-          await this.containerManager.execInContainer(containerId, 'mkdir -p /var/opt/mssql/backup');
+          await this.containerManager.execInContainer(
+            containerId,
+            'mkdir -p /var/opt/mssql/backup',
+          );
 
           // Check for sqlcmd location (ODBC 18 uses mssql-tools18 and requires -C for TrustServerCertificate)
           let sqlCmdPath = '/opt/mssql-tools/bin/sqlcmd';
@@ -472,7 +780,7 @@ export class MigrationTester {
       }
 
       return {
-        engine: `${engine.type} ${engine.version}`,
+        engine: `${engine.type} ${versionLabel}`,
         success: true,
         durationMs: Date.now() - startTime,
       };
@@ -487,7 +795,7 @@ export class MigrationTester {
       }
 
       return {
-        engine: `${engine.type} ${engine.version}`,
+        engine: `${engine.type} ${versionLabel}`,
         success: false,
         error: errorMessage,
         durationMs: Date.now() - startTime,

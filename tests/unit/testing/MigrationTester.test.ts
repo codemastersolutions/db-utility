@@ -72,6 +72,7 @@ describe('MigrationTester', () => {
 
     tester = new MigrationTester(containerManager);
     vi.clearAllMocks();
+    vi.stubGlobal('fetch', vi.fn());
   });
 
   it('should skip if docker is not available', async () => {
@@ -87,6 +88,7 @@ describe('MigrationTester', () => {
   it('should run tests for specified engines', async () => {
     vi.mocked(containerManager.checkDocker).mockResolvedValue(true);
     vi.mocked(containerManager.startContainer).mockResolvedValue('container123');
+    vi.mocked(containerManager.imageExists).mockResolvedValue(true);
 
     const mockConnector = {
       connect: vi.fn().mockResolvedValue(undefined),
@@ -131,6 +133,7 @@ describe('MigrationTester', () => {
   it('should use globally installed ORM and pass its path to the runner', async () => {
     vi.mocked(containerManager.checkDocker).mockResolvedValue(true);
     vi.mocked(containerManager.startContainer).mockResolvedValue('container123');
+    vi.mocked(containerManager.imageExists).mockResolvedValue(true);
 
     mockPackageManager.isInstalled.mockImplementation(async (_pkg: string, scope: string) => {
       if (scope === 'global') return true;
@@ -166,6 +169,7 @@ describe('MigrationTester', () => {
   it('should read engines from database-info.json if not specified', async () => {
     vi.mocked(containerManager.checkDocker).mockResolvedValue(true);
     vi.mocked(containerManager.startContainer).mockResolvedValue('container123');
+    vi.mocked(containerManager.imageExists).mockResolvedValue(true);
 
     const mockConnector = {
       connect: vi.fn().mockResolvedValue(undefined),
@@ -253,6 +257,7 @@ describe('MigrationTester', () => {
   it('should use bypassSafety for MSSQL database creation', async () => {
     vi.mocked(containerManager.checkDocker).mockResolvedValue(true);
     vi.mocked(containerManager.startContainer).mockResolvedValue('container123');
+    vi.mocked(containerManager.imageExists).mockResolvedValue(true);
 
     const mockConnector = {
       connect: vi.fn().mockResolvedValue(undefined),
@@ -291,6 +296,7 @@ describe('MigrationTester', () => {
   it('should setup backup volume and execute backup command when backup flag is true', async () => {
     vi.mocked(containerManager.checkDocker).mockResolvedValue(true);
     vi.mocked(containerManager.startContainer).mockResolvedValue('container123');
+    vi.mocked(containerManager.imageExists).mockResolvedValue(true);
     vi.mocked(containerManager.execInContainer).mockResolvedValue('');
     vi.mocked(containerManager.copyFromContainer).mockResolvedValue(undefined);
 
@@ -344,6 +350,7 @@ describe('MigrationTester', () => {
   it('should execute backup command for MSSQL', async () => {
     vi.mocked(containerManager.checkDocker).mockResolvedValue(true);
     vi.mocked(containerManager.startContainer).mockResolvedValue('container123');
+    vi.mocked(containerManager.imageExists).mockResolvedValue(true);
     vi.mocked(containerManager.copyFromContainer).mockResolvedValue(undefined);
     // Mock execInContainer for two calls:
     // 1. ensure backup dir exists
@@ -410,6 +417,7 @@ describe('MigrationTester', () => {
   it('should fallback to legacy sqlcmd path when mssql-tools18 is unavailable', async () => {
     vi.mocked(containerManager.checkDocker).mockResolvedValue(true);
     vi.mocked(containerManager.startContainer).mockResolvedValue('container123');
+    vi.mocked(containerManager.imageExists).mockResolvedValue(true);
     vi.mocked(containerManager.copyFromContainer).mockResolvedValue(undefined);
     vi.mocked(containerManager.execInContainer)
       .mockResolvedValueOnce('')
@@ -457,6 +465,7 @@ describe('MigrationTester', () => {
   it('should warn and continue when removing an existing backup fails', async () => {
     vi.mocked(containerManager.checkDocker).mockResolvedValue(true);
     vi.mocked(containerManager.startContainer).mockResolvedValue('container123');
+    vi.mocked(containerManager.imageExists).mockResolvedValue(true);
     vi.mocked(containerManager.execInContainer).mockResolvedValue('');
     vi.mocked(containerManager.copyFromContainer).mockResolvedValue(undefined);
 
@@ -500,6 +509,7 @@ describe('MigrationTester', () => {
   it('should detect installed version when version is current', async () => {
     vi.mocked(containerManager.checkDocker).mockResolvedValue(true);
     vi.mocked(containerManager.startContainer).mockResolvedValue('container123');
+    vi.mocked(containerManager.imageExists).mockResolvedValue(true);
 
     vi.mocked(fs.existsSync).mockImplementation((path: fs.PathLike) =>
       String(path).endsWith('package.json'),
@@ -544,5 +554,222 @@ describe('MigrationTester', () => {
     // Verify table output
     const tableCall = tableSpy.mock.calls[0][0];
     expect(tableCall[0].Engine).toContain('sequelize v6.37.5');
+  });
+
+  it('should resolve a version-only testDatabase override using the detected database type', async () => {
+    vi.mocked(containerManager.checkDocker).mockResolvedValue(true);
+    vi.mocked(containerManager.startContainer).mockResolvedValue('container123');
+
+    const mockConnector = {
+      connect: vi.fn().mockResolvedValue(undefined),
+      disconnect: vi.fn().mockResolvedValue(undefined),
+      query: vi.fn().mockResolvedValue(undefined),
+      isConnected: vi.fn().mockResolvedValue(true),
+      getVersion: vi.fn().mockResolvedValue('2019'),
+    };
+    vi.mocked(ConnectionFactory.create).mockReturnValue(mockConnector);
+
+    const mockRunner = {
+      run: vi.fn().mockResolvedValue(undefined),
+    };
+    SequelizeRunnerMock.mockImplementation(function () {
+      return mockRunner;
+    } as unknown as new () => unknown);
+
+    vi.mocked(fs.existsSync).mockImplementation((path: fs.PathLike) => {
+      const pathStr = String(path);
+      if (pathStr.endsWith('database-info.json')) return true;
+      if (pathStr.endsWith('package.json')) return false;
+      return false;
+    });
+    vi.mocked(fs.readFileSync).mockReturnValue(
+      JSON.stringify({ type: 'mssql', version: 'Microsoft SQL Server 2016' }),
+    );
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        tags: ['2017-latest', '2019-latest', '2022-latest'],
+      }),
+    } as unknown as Response);
+
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'table').mockImplementation(() => {});
+
+    await tester.test('sequelize', 'dir', undefined, false, '2019');
+
+    expect(containerManager.startContainer).toHaveBeenCalledWith(
+      'mcr.microsoft.com/mssql/server:2019-latest',
+      expect.any(Object),
+      expect.any(Number),
+      1433,
+    );
+  });
+
+  it('should resolve the latest matching Docker Hub tag for a version-only testDatabase override', async () => {
+    vi.mocked(containerManager.checkDocker).mockResolvedValue(true);
+    vi.mocked(containerManager.startContainer).mockResolvedValue('container123');
+
+    const mockConnector = {
+      connect: vi.fn().mockResolvedValue(undefined),
+      disconnect: vi.fn().mockResolvedValue(undefined),
+      query: vi.fn().mockResolvedValue(undefined),
+      isConnected: vi.fn().mockResolvedValue(true),
+      getVersion: vi.fn().mockResolvedValue('8.4.6'),
+    };
+    vi.mocked(ConnectionFactory.create).mockReturnValue(mockConnector);
+
+    const mockRunner = {
+      run: vi.fn().mockResolvedValue(undefined),
+    };
+    SequelizeRunnerMock.mockImplementation(function () {
+      return mockRunner;
+    } as unknown as new () => unknown);
+
+    vi.mocked(fs.existsSync).mockImplementation((path: fs.PathLike) => {
+      const pathStr = String(path);
+      if (pathStr.endsWith('database-info.json')) return true;
+      if (pathStr.endsWith('package.json')) return false;
+      return false;
+    });
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ type: 'mysql', version: '8.0' }));
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        results: [{ name: '8.0.44' }, { name: '8.4.6' }, { name: '9.0.1' }],
+        next: null,
+      }),
+    } as unknown as Response);
+
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'table').mockImplementation(() => {});
+
+    await tester.test('sequelize', 'dir', undefined, false, '8');
+
+    expect(containerManager.startContainer).toHaveBeenCalledWith(
+      'docker.io/library/mysql:8.4.6',
+      expect.any(Object),
+      expect.any(Number),
+      3306,
+    );
+  });
+
+  it('should use an explicit image string from Docker Hub when configured', async () => {
+    vi.mocked(containerManager.checkDocker).mockResolvedValue(true);
+    vi.mocked(containerManager.startContainer).mockResolvedValue('container123');
+    vi.mocked(containerManager.imageExists).mockResolvedValue(true);
+
+    const mockConnector = {
+      connect: vi.fn().mockResolvedValue(undefined),
+      disconnect: vi.fn().mockResolvedValue(undefined),
+      query: vi.fn().mockResolvedValue(undefined),
+      isConnected: vi.fn().mockResolvedValue(true),
+      getVersion: vi.fn().mockResolvedValue('18.4'),
+    };
+    vi.mocked(ConnectionFactory.create).mockReturnValue(mockConnector);
+
+    const mockRunner = {
+      run: vi.fn().mockResolvedValue(undefined),
+    };
+    SequelizeRunnerMock.mockImplementation(function () {
+      return mockRunner;
+    } as unknown as new () => unknown);
+
+    vi.mocked(fs.existsSync).mockImplementation((path: fs.PathLike) => {
+      const pathStr = String(path);
+      if (pathStr.endsWith('database-info.json')) return true;
+      if (pathStr.endsWith('package.json')) return false;
+      return false;
+    });
+    vi.mocked(fs.readFileSync).mockReturnValue(
+      JSON.stringify({ type: 'postgres', version: 'PostgreSQL 16.1' }),
+    );
+
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'table').mockImplementation(() => {});
+
+    await tester.test('sequelize', 'dir', undefined, false, 'postgres:18-alpine');
+
+    expect(containerManager.startContainer).toHaveBeenCalledWith(
+      'docker.io/library/postgres:18-alpine',
+      expect.any(Object),
+      expect.any(Number),
+      5432,
+    );
+  });
+
+  it('should use an explicit image object with registry when configured', async () => {
+    vi.mocked(containerManager.checkDocker).mockResolvedValue(true);
+    vi.mocked(containerManager.startContainer).mockResolvedValue('container123');
+    vi.mocked(containerManager.imageExists).mockResolvedValue(true);
+
+    const mockConnector = {
+      connect: vi.fn().mockResolvedValue(undefined),
+      disconnect: vi.fn().mockResolvedValue(undefined),
+      query: vi.fn().mockResolvedValue(undefined),
+      isConnected: vi.fn().mockResolvedValue(true),
+      getVersion: vi.fn().mockResolvedValue('2019'),
+    };
+    vi.mocked(ConnectionFactory.create).mockReturnValue(mockConnector);
+
+    const mockRunner = {
+      run: vi.fn().mockResolvedValue(undefined),
+    };
+    SequelizeRunnerMock.mockImplementation(function () {
+      return mockRunner;
+    } as unknown as new () => unknown);
+
+    vi.mocked(fs.existsSync).mockImplementation((path: fs.PathLike) => {
+      const pathStr = String(path);
+      if (pathStr.endsWith('database-info.json')) return true;
+      if (pathStr.endsWith('package.json')) return false;
+      return false;
+    });
+    vi.mocked(fs.readFileSync).mockReturnValue(
+      JSON.stringify({ type: 'mssql', version: 'Microsoft SQL Server 2016' }),
+    );
+
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'table').mockImplementation(() => {});
+
+    await tester.test('sequelize', 'dir', undefined, false, {
+      registry: 'mcr.microsoft.com/mssql',
+      image: 'server:2019-latest',
+    });
+
+    expect(containerManager.startContainer).toHaveBeenCalledWith(
+      'mcr.microsoft.com/mssql/server:2019-latest',
+      expect.any(Object),
+      expect.any(Number),
+      1433,
+    );
+  });
+
+  it('should report an error when no Docker image matches the configured version', async () => {
+    vi.mocked(containerManager.checkDocker).mockResolvedValue(true);
+    vi.mocked(containerManager.imageExists).mockResolvedValue(false);
+
+    vi.mocked(fs.existsSync).mockImplementation((path: fs.PathLike) => {
+      const pathStr = String(path);
+      if (pathStr.endsWith('database-info.json')) return true;
+      if (pathStr.endsWith('package.json')) return false;
+      return false;
+    });
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ type: 'postgres', version: '14.5' }));
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        results: [{ name: '15.1' }],
+        next: null,
+      }),
+    } as unknown as Response);
+
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const tableSpy = vi.spyOn(console, 'table').mockImplementation(() => {});
+
+    await tester.test('sequelize', 'dir', undefined, false, '18.4');
+
+    expect(containerManager.startContainer).not.toHaveBeenCalled();
+    const reportRows = tableSpy.mock.calls[0][0] as Array<Record<string, string>>;
+    expect(reportRows[0]?.Error).toContain('No Docker image found');
   });
 });
