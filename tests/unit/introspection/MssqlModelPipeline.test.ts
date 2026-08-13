@@ -77,7 +77,9 @@ describe('MSSQL Model Pipeline', () => {
     expect(model.content).toContain('defaultValue: Sequelize.literal("getdate()")');
     expect(model.content).not.toContain('CREATE DEFAULT DEF_DLOGICONULL AS 0');
     expect(model.content).toContain('DATAFECHAMENTOFACTOR');
-    expect(model.content).not.toContain('DATAFECHAMENTOFACTOR: {\n      type: DataTypes.DATE,\n      defaultValue: 0');
+    expect(model.content).not.toContain(
+      'DATAFECHAMENTOFACTOR: {\n      type: DataTypes.DATE,\n      defaultValue: 0',
+    );
   });
 
   it('should normalize legacy MSSQL defaults before generating TypeORM models', async () => {

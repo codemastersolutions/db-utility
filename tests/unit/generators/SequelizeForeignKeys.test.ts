@@ -159,7 +159,9 @@ describe('Sequelize Foreign Keys', () => {
     const fkMigration = migrations.find((migration) => migration.fileName.includes('add-fks'));
 
     expect(fkMigration?.content).toContain('function getForeignKeyErrorMessage(error)');
-    expect(fkMigration?.content).toContain("console.warn('Failed to create FK FKVLNTPESSOASCOMP_PPESSOAS on table VLNTPESSOASCOMP:'");
+    expect(fkMigration?.content).toContain(
+      "console.warn('Failed to create FK FKVLNTPESSOASCOMP_PPESSOAS on table VLNTPESSOASCOMP:'",
+    );
     expect(fkMigration?.content).toContain(
       "throw new Error('Foreign key creation failed for table VLNTPESSOASCOMP: ' + failures.join(' | '));",
     );

@@ -133,5 +133,4 @@ export class PrismaGenerator implements SchemaGenerator {
         return null;
     }
   }
-
 }

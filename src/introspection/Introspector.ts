@@ -14,4 +14,3 @@ export abstract class BaseIntrospector implements IDatabaseIntrospector {
 
   abstract introspectSchema(): Promise<DatabaseSchema>;
 }
-

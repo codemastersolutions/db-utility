@@ -173,8 +173,7 @@ const enMessages: Messages = {
     introspectSavedAt: (dir: string) => `Introspection files saved at: ${dir}`,
     schemaLimitSummary:
       'Warning: the introspection found structures that require extra care during model and migration generation.',
-    tablesOverColumnLimit: (count: number) =>
-      `Tables with more than 32 columns found: ${count}.`,
+    tablesOverColumnLimit: (count: number) => `Tables with more than 32 columns found: ${count}.`,
     tableOverColumnLimitItem: (tableName: string, columnCount: number) =>
       `- Table ${tableName} with ${columnCount} columns.`,
     indexesOverKeyColumnLimit: (count: number) =>

@@ -113,9 +113,7 @@ describe('IntrospectionLogger', () => {
       }>;
     };
 
-    expect(parsedMetadata.tablesOver32Columns).toEqual([
-      { tableName: 'LPUBLIC', columnCount: 33 },
-    ]);
+    expect(parsedMetadata.tablesOver32Columns).toEqual([{ tableName: 'LPUBLIC', columnCount: 33 }]);
     expect(parsedMetadata.indexesOver32KeyColumns).toHaveLength(1);
     expect(parsedMetadata.indexesOver32KeyColumns[0]).toMatchObject({
       tableName: 'LPUBLIC',

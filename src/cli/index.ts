@@ -12,6 +12,7 @@ import { ConfigLoader } from '../config/ConfigLoader';
 import { ConnectionFactory } from '../database/ConnectionFactory';
 import { DbUtilitySecurityError } from '../database/SqlSafety';
 import { DbUtilityError } from '../errors/DbUtilityError';
+import { CryptoService } from '../crypto/CryptoService';
 import { GeneratorWriter } from '../generators/GeneratorWriter';
 import {
   DataMigrationGenerator,
@@ -263,6 +264,36 @@ const withConnection = async (
     }
   }
 };
+
+program
+  .command('encrypt')
+  .description(
+    'Encrypt a plaintext value using DBUTILITY_ENCRYPTION_KEY (use output in encrypted connection fields).',
+  )
+  .argument('<value>', 'Plaintext value to encrypt')
+  .action((value: string) => {
+    try {
+      const encrypted = CryptoService.encrypt(value);
+      console.log(encrypted);
+    } catch (error) {
+      handleCliError(error);
+    }
+  });
+
+program
+  .command('decrypt')
+  .description(
+    'Decrypt a value previously produced by the encrypt command using DBUTILITY_ENCRYPTION_KEY.',
+  )
+  .argument('<value>', 'Encrypted value to decrypt')
+  .action((value: string) => {
+    try {
+      const plaintext = CryptoService.decrypt(value);
+      console.log(plaintext);
+    } catch (error) {
+      handleCliError(error);
+    }
+  });
 
 const connectCommand = program.command('connect').description(messages.cli.connectDescription);
 

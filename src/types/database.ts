@@ -11,6 +11,13 @@ export interface DatabaseConfig {
   connectTimeoutMs?: number;
   // Opções específicas podem ser adicionadas depois
   connectionString?: string;
+  /**
+   * When true, the properties host, port, username, password and database are expected
+   * to be encrypted using DbUtility's built-in AES-256-GCM encryption.
+   * The library will automatically decrypt them before connecting to the database.
+   * The encryption key must be provided via DBUTILITY_ENCRYPTION_KEY environment variable.
+   */
+  encrypted?: boolean;
 }
 
 export interface QueryOptions {

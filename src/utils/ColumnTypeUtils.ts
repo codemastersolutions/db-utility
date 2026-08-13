@@ -18,7 +18,9 @@ export function getUsedAliasTypes(schema: DatabaseSchema): AliasTypeMetadata[] {
     schema.tables.flatMap((table) =>
       table.columns
         .filter((column) => column.aliasTypeName)
-        .map((column) => buildAliasKey(column.aliasTypeSchema ?? 'dbo', column.aliasTypeName ?? '')),
+        .map((column) =>
+          buildAliasKey(column.aliasTypeSchema ?? 'dbo', column.aliasTypeName ?? ''),
+        ),
     ),
   );
 

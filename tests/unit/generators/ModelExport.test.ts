@@ -55,7 +55,7 @@ describe('Model Export Generation', () => {
     const content = files[0].content;
 
     expect(content).toContain('export class Users extends Model {}');
-    expect(content).toContain('tableName: \'Users\'');
+    expect(content).toContain("tableName: 'Users'");
     expect(content).toContain('indexes: [');
     expect(content).toContain("{ name: 'idx_users_email', fields: ['email'], unique: true }");
   });

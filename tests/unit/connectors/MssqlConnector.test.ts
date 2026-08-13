@@ -29,7 +29,11 @@ vi.mock('mssql', () => {
 describe('MssqlConnector', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    const mockRequest = (mssql as typeof mssql & { __mockRequest: { input: ReturnType<typeof vi.fn>; query: ReturnType<typeof vi.fn> } }).__mockRequest;
+    const mockRequest = (
+      mssql as typeof mssql & {
+        __mockRequest: { input: ReturnType<typeof vi.fn>; query: ReturnType<typeof vi.fn> };
+      }
+    ).__mockRequest;
     mockRequest.input.mockClear();
     mockRequest.query.mockClear();
   });
@@ -102,7 +106,9 @@ describe('MssqlConnector', () => {
     await connector.connect();
     await connector.query('SELECT @param0 as value', ['a'.repeat(5000)], { bypassSafety: true });
 
-    const mockRequest = (mssql as typeof mssql & { __mockRequest: { input: ReturnType<typeof vi.fn> } }).__mockRequest;
+    const mockRequest = (
+      mssql as typeof mssql & { __mockRequest: { input: ReturnType<typeof vi.fn> } }
+    ).__mockRequest;
     expect(mockRequest.input).toHaveBeenCalledWith(
       'param0',
       expect.objectContaining({ type: 'NVarChar' }),
@@ -124,7 +130,9 @@ describe('MssqlConnector', () => {
     await connector.connect();
     await connector.query('SELECT @param0 as value', ['curto'], { bypassSafety: true });
 
-    const mockRequest = (mssql as typeof mssql & { __mockRequest: { input: ReturnType<typeof vi.fn> } }).__mockRequest;
+    const mockRequest = (
+      mssql as typeof mssql & { __mockRequest: { input: ReturnType<typeof vi.fn> } }
+    ).__mockRequest;
     expect(mockRequest.input).toHaveBeenCalledWith('param0', 'curto');
   });
 });

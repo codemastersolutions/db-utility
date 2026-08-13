@@ -1,7 +1,4 @@
-import {
-  ColumnMetadata,
-  DatabaseSchema,
-} from '../types/introspection';
+import { ColumnMetadata, DatabaseSchema } from '../types/introspection';
 import { getEffectiveDataType, inferEffectiveDefaultLogicalType } from '../utils/ColumnTypeUtils';
 import { classifyDatabaseDefault } from '../utils/DefaultValueUtils';
 import { getGeneratableIndexes } from '../utils/IndexUtils';
@@ -54,7 +51,8 @@ export const ${className} = model<I${className}>('${className}', ${className}Sch
 
   private getTsType(col: ColumnMetadata): string {
     const lower = getEffectiveDataType(col).toLowerCase();
-    if (lower.includes('int') || lower.includes('float') || lower.includes('decimal')) return 'number';
+    if (lower.includes('int') || lower.includes('float') || lower.includes('decimal'))
+      return 'number';
     if (lower.includes('bool')) return 'boolean';
     if (lower.includes('date') || lower.includes('time')) return 'Date';
     if (lower.includes('image') || lower.includes('binary') || lower.includes('blob'))
@@ -82,7 +80,8 @@ export const ${className} = model<I${className}>('${className}', ${className}Sch
 
   private getMongooseType(col: ColumnMetadata): string {
     const lower = getEffectiveDataType(col).toLowerCase();
-    if (lower.includes('int') || lower.includes('float') || lower.includes('decimal')) return 'Number';
+    if (lower.includes('int') || lower.includes('float') || lower.includes('decimal'))
+      return 'Number';
     if (lower.includes('bool')) return 'Boolean';
     if (lower.includes('date') || lower.includes('time')) return 'Date';
     if (lower.includes('image') || lower.includes('binary') || lower.includes('blob'))
@@ -113,5 +112,4 @@ export const ${className} = model<I${className}>('${className}', ${className}Sch
         return null;
     }
   }
-
 }

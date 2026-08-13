@@ -123,23 +123,25 @@ Os campos `introspection.outputDir` e `migrations.outputDir` aceitam caminhos re
     "type": "postgres",
     "host": "localhost",
     "port": 5432,
-    "username": "usuario",
-    "password": "senha",
-    "database": "meubanco",
+    "username": "myuser",
+    "password": "mypassword",
+    "database": "mydb",
     "ssl": false,
-    "connectTimeoutMs": 15000
+    "connectTimeoutMs": 15000,
+    "encrypted": false
   },
   "connections": {
-    "desenvolvimento": {
+    "development": {
       "type": "mysql",
       "host": "localhost",
       "port": 3306,
       "username": "root",
       "password": "password",
       "database": "dev_db",
-      "connectTimeoutMs": 15000
+      "connectTimeoutMs": 15000,
+      "encrypted": false
     },
-    "producao": {
+    "production": {
       "type": "postgres",
       "host": "prod-db",
       "port": 5432,
@@ -147,13 +149,58 @@ Os campos `introspection.outputDir` e `migrations.outputDir` aceitam caminhos re
       "password": "secure_password",
       "database": "prod_db",
       "ssl": true,
-      "connectTimeoutMs": 15000
+      "connectTimeoutMs": 15000,
+      "encrypted": false
     }
   }
 }
 ```
 
-A propriedade `migrations` aceita tanto um objeto único quanto um array de objetos. Quando for um array, o comando `migrations` executa o processo para cada item na ordem informada.
+> **Credenciais de Conexão Criptografadas**: Para não armazenar segredos em texto puro no `dbutility.config.json`, defina `"encrypted": true` em cada conexão e substitua os valores de `host`, `port`, `username`, `password` e `database` pelos resultados produzidos por `dbutility encrypt "<texto>"`. A chave de criptografia deve ser informada por meio da variável de ambiente `DBUTILITY_ENCRYPTION_KEY`. A biblioteca descriptografa automaticamente os valores antes de conectar ao banco de dados.
+
+**Passo a passo: Credenciais de Conexão Criptografadas**
+
+1. **Gere uma chave de criptografia forte** e armazene-a no arquivo `.env` ou nas variáveis de ambiente do sistema. Use qualquer valor aleatório criptograficamente seguro (pelo menos 32 caracteres):
+   ```bash
+   openssl rand -hex 32
+   ```
+2. **Adicione a chave** ao ambiente (recomendado usar o arquivo `.env` do projeto):
+   ```env
+   DBUTILITY_ENCRYPTION_KEY="seu-valor-aleatorio-de-64-caracteres-do-passo-1"
+   ```
+   A biblioteca também aceita os aliases: `DB_UTILITY_ENCRYPTION_KEY`, `DBUTILITY_CRYPTO_KEY` ou `DB_UTILITY_CRYPTO_KEY`.
+3. **Criptografe cada um dos 5 campos sensíveis** com a CLI:
+   ```bash
+   dbutility encrypt "prod-db.internal.empresa.com.br"   # host
+   dbutility encrypt "1433"                                # port (como string; é criptografado e depois convertido de volta para inteiro)
+   dbutility encrypt "app_user"                            # username
+   dbutility encrypt "SenhaF0rte!123"                      # password
+   dbutility encrypt "banco_producao"                      # database
+   ```
+4. **Substitua os valores em texto puro** no `dbutility.config.json` pelas strings criptografadas e marque a conexão:
+   ```json
+   {
+     "connection": {
+       "type": "postgres",
+       "host": "<host-criptografado>",
+       "port": "<port-criptografado>",
+       "username": "<usuario-criptografado>",
+       "password": "<senha-criptografada>",
+       "database": "<banco-criptografado>",
+       "ssl": true,
+       "connectTimeoutMs": 15000,
+       "encrypted": true
+     }
+   }
+   ```
+5. **Observações importantes**:
+   - Apenas estes 5 campos são criptografados: `host`, `port`, `username`, `password`, `database`.
+   - NUNCA criptografe `type`, `ssl`, `connectTimeoutMs` ou o próprio `encrypted`; mantenha-os como valores em texto puro.
+   - A mesma `DBUTILITY_ENCRYPTION_KEY` deve estar presente em todos os ambientes onde o DbUtility rodar (notebooks dos devs, CI/CD, servidores de produção).
+   - Se você perder a chave de criptografia, não há forma de recuperar os valores criptografados; trate a chave com o mesmo nível de cuidado de qualquer outro segredo.
+   - O `port` criptografado fica armazenado como string de cifra; após a descriptografia ele é convertido automaticamente de volta para inteiro.
+
+A propriedade `migrations` aceita tanto um único objeto quanto um array de objetos. Quando for um array, o comando `migrations` executa o processo para cada item na ordem informada.
 
 Você também pode definir `connectionName` em cada item de migration para usar uma conexão específica do objeto `connections`. Se `connectionName` não for informado, a migration usa a conexão padrão definida em `connection`. Se o nome informado não existir em `connections`, o item é ignorado e uma mensagem é exibida ao usuário.
 
@@ -270,9 +317,11 @@ Defina `migrations.disableForeignKeys` como `true` para não gerar arquivos de m
 
 ### Configuração da Verificação de Existência da Tabela
 
-Por padrão, as migrations geradas para criação de tabela verificam se a tabela de destino já existe antes de chamar `createTable`. Se a tabela já existir, a migration exibe uma mensagem no terminal e retorna sucesso para que a execução continue sem interrupção.
+Por padrão, as migrations geradas para criação de tabela verificam se a tabela de destino já existe antes de chamar `createTable`. Se a tabela já existir, a migration exibe uma mensagem no terminal e retorna sucesso para que a execução continue sem interrupção. Isso evita falhas causadas por tabelas que tenham sido criadas manualmente antes da execução das migrations.
 
-Defina `migrations.disableTableExistsCheck` como `true` para desabilitar essa verificação. O valor padrão é `false`.
+No **Sequelize 5.x** (onde `queryInterface.tableExists` não existe), a migration gerada faz fallback para `queryInterface.describeTable` e trata um erro de “tabela não existe” como tabela ausente, de forma que a verificação funciona de maneira transparente tanto no Sequelize 5 quanto no Sequelize 6.
+
+Defina `migrations.disableTableExistsCheck` como `true` para desabilitar essa verificação. O valor padrão é `false`. Use esta opção quando você quer que a execução falhe de forma explícita caso uma migration de criação de tabela rode contra um objeto de schema já existente.
 
 ```json
 {
@@ -358,6 +407,19 @@ Formatos suportados para o objeto:
 
 Quando o objeto não incluir `registry`, o DbUtility primeiro tenta usar o valor completo de `image`. Se não encontrar a imagem, tenta novamente usando o Docker Hub. Se ainda assim não encontrar uma imagem válida, o processo de teste é interrompido com uma mensagem de erro.
 
+**Mapeamento Prático de Versões**
+
+| Valor de `testDatabase` | Tipo de banco (da introspecção) | Imagem Docker resolvida exemplo                     |
+| ----------------------- | ------------------------------- | --------------------------------------------------- |
+| `"2019"`                | MSSQL                           | `mcr.microsoft.com/mssql/server:2019-latest`        |
+| `"2016"`                | MSSQL                           | `mcr.microsoft.com/mssql/server:2016-latest`        |
+| `"8"`                   | MySQL                           | `mysql:8.<último-minor>.<último-patch>`             |
+| `"5.7"`                 | MySQL                           | `mysql:5.7.<último-patch>`                          |
+| `"18.4"`                | PostgreSQL                      | `postgres:18.4`                                     |
+| `"16"`                  | PostgreSQL                      | `postgres:16-alpine` ou tag mais recente disponível |
+
+Para strings de apenas versão, como `"8"`, o DbUtility resolve progressivamente a tag mais recente disponível (`8.x.y`, com fallback para `8.x`, depois para `8`, parando na primeira imagem existente que o Docker Hub retornar. Registries privados exigem que a imagem já esteja acessível no daemon Docker local (execute `docker login <registry>` previamente).
+
 ### Múltiplas Conexões
 
 Você pode definir múltiplas conexões dentro da propriedade `connections` e utilizá-las na CLI com a flag `--conn <nome>`.
@@ -416,6 +478,13 @@ DB_USER=usuario
 DB_PASSWORD=senha
 DB_NAME=meubanco
 DB_CONNECT_TIMEOUT_MS=15000
+
+# Chave de criptografia usada para descriptografar os campos da conexão DB (host, port, username, password, database)
+# quando "encrypted": true estiver definido no arquivo de configuração ou DBUTILITY_DB_ENCRYPTED=true.
+DBUTILITY_ENCRYPTION_KEY="substitua-por-um-segredo-forte-e-aleatorio"
+
+# Quando true, os valores DB_* da conexão devem estar criptografados com a chave acima.
+# DBUTILITY_DB_ENCRYPTED=true
 ```
 
 ## Comandos e Flags da CLI
@@ -445,6 +514,24 @@ DB_CONNECT_TIMEOUT_MS=15000
 | `-d, --database <database>` | Nome do banco de dados                                |
 | `--ssl`                     | Habilita conexão SSL                                  |
 | `--connect-timeout <ms>`    | Timeout de conexão (ms)                               |
+
+#### `encrypt` / `decrypt`
+
+Criptografa (ou descriptografa) um único valor usando a chave configurada por `DBUTILITY_ENCRYPTION_KEY`. Use os outputs criptografados com `encrypted: true` na configuração de conexão.
+
+```bash
+# Criptografe os segredos da conexão, um por vez:
+dbutility encrypt "db.example.internal"
+dbutility encrypt "1433"
+dbutility encrypt "sa"
+dbutility encrypt "MyStr0ng!P@ss"
+dbutility encrypt "app_production"
+
+# Descriptografe um valor previamente criptografado para depuração:
+dbutility decrypt "<valor-criptografado>"
+```
+
+> **Comportamento Padrão**: Por padrão, as credenciais são armazenadas em texto puro no arquivo de configuração. Para habilitar campos criptografados, use `dbutility encrypt` para cada valor sensível, substitua-os no arquivo de configuração pelos resultados e defina `"encrypted": true` na conexão (ou `DBUTILITY_DB_ENCRYPTED=true`). Lembre-se de fornecer a mesma `DBUTILITY_ENCRYPTION_KEY` usada na criptografia. Para desativar a criptografia de credenciais nativa, basta manter ou definir `"encrypted": false` nas suas conexões.
 
 ### Comandos
 
@@ -564,6 +651,86 @@ dbutility migrations --target typeorm --conn producao
 
 ```bash
 dbutility migrations --target sequelize --conn desenvolvimento --data --tables "usuarios,cargos"
+```
+
+### Ponta a ponta: credenciais criptografadas para conexão de produção
+
+1. Gere a chave e coloque-a no `.env`:
+   ```bash
+   openssl rand -hex 32 > /tmp/chave-db
+   # copie a saída para o .env como DBUTILITY_ENCRYPTION_KEY=...
+   ```
+2. Criptografe os 5 valores da conexão:
+   ```bash
+   export DBUTILITY_ENCRYPTION_KEY=$(cat /tmp/chave-db)
+   dbutility encrypt "prod-db.empresa.internal"
+   dbutility encrypt "5432"
+   dbutility encrypt "app_prod"
+   dbutility encrypt "xxxxxxxxxxxxxxxx"
+   dbutility encrypt "app_producao"
+   ```
+3. Cole os resultados no `dbutility.config.json` e marque a conexão com `"encrypted": true`.
+4. Valide a conexão sem expor texto puro:
+   ```bash
+   dbutility connect --conn producao
+   ```
+
+### Gerar migrations isoladas apenas para duas tabelas de catálogo/lookup
+
+Quando você precisar exportar somente duas tabelas de lookup, como `status` e `perfis`, independentemente do resto do schema, declare-as em `migrations.dataTables` e ative a flag de exportação isolada:
+
+```json
+{
+  "migrations": {
+    "outputDir": "exports/migrations/lookups",
+    "exportOnlyInDataTables": true,
+    "dataTables": ["status", "perfis"],
+    "disableTableExistsCheck": false
+  }
+}
+```
+
+```bash
+dbutility migrations --target sequelize --conn desenvolvimento
+```
+
+Isso produz migrations de schema **apenas** para `status` e `perfis`, com `disableForeignKeys` automaticamente igual a `true`, de forma que não existem arquivos `add-fks-*` e as migrations geradas funcionam de forma independente em qualquer banco compatível.
+
+### Gerar migrations e testá-las contra uma versão específica do SQL Server
+
+Se seu cluster de produção ainda está no SQL Server 2016 mas você quer validar as migrations para um alvo mais novo, como 2019:
+
+```json
+{
+  "migrations": {
+    "backup": true,
+    "testDatabase": "2019"
+  }
+}
+```
+
+```bash
+dbutility migrations --target sequelize --conn producao
+```
+
+O tipo de banco (MSSQL) é detectado a partir de `database-info.json`, e o runner de testes sobe a imagem `mcr.microsoft.com/mssql/server:2019-latest` para a validação.
+
+### Desabilitar a verificação padrão de existência de tabela (falha explícita)
+
+Para pipelines de CI que devem falhar quando tabelas já existem, desative a guarda padrão:
+
+```bash
+dbutility migrations --target typeorm --conn homologacao --disable-table-exists-check
+```
+
+ou configure-a no arquivo:
+
+```json
+{
+  "migrations": {
+    "disableTableExistsCheck": true
+  }
+}
 ```
 
 ## Licença

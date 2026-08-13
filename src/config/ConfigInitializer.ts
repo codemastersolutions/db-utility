@@ -55,6 +55,7 @@ const defaultConfig: InitialFileConfig = {
     database: 'database_name',
     ssl: false,
     connectTimeoutMs: 15000,
+    encrypted: false,
   },
 };
 

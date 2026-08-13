@@ -205,10 +205,7 @@ describe('Sequelize MSSQL Composite Foreign Key Integration', () => {
           'CODCOLIGADACONTRATADA',
           'CODCONTRATADA',
         ]);
-        expect(fkRows.map((row) => row.referenced_column_name)).toEqual([
-          'CODCOLIGADA',
-          'CODCFO',
-        ]);
+        expect(fkRows.map((row) => row.referenced_column_name)).toEqual(['CODCOLIGADA', 'CODCFO']);
 
         await connector.query(
           'INSERT INTO [FCFO] ([CODCOLIGADA], [CODCFO]) VALUES (@param0, @param1)',
@@ -260,7 +257,9 @@ async function waitForDatabase(config: DatabaseConfig, maxRetries = 45): Promise
   throw new Error('MSSQL container failed to become ready within timeout');
 }
 
-async function safeDisconnect(connector: ReturnType<typeof ConnectionFactory.create>): Promise<void> {
+async function safeDisconnect(
+  connector: ReturnType<typeof ConnectionFactory.create>,
+): Promise<void> {
   try {
     await connector.disconnect();
   } catch {

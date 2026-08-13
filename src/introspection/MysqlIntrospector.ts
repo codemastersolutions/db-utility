@@ -231,4 +231,3 @@ export class MysqlIntrospector extends BaseIntrospector {
     return this.connector.query<MysqlFkRow>(sql);
   }
 }
-

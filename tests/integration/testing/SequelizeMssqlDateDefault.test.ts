@@ -109,11 +109,9 @@ describe('Sequelize MSSQL Date Default Integration', () => {
         const connector = ConnectionFactory.create({ ...masterConfig, database: dbName });
         await connector.connect();
 
-        await connector.query(
-          'INSERT INTO [DateDefaultSample] ([ID]) VALUES (@param0)',
-          [1],
-          { bypassSafety: true },
-        );
+        await connector.query('INSERT INTO [DateDefaultSample] ([ID]) VALUES (@param0)', [1], {
+          bypassSafety: true,
+        });
 
         const rows = await connector.query<{ definition: string | null }>(
           `
@@ -163,7 +161,9 @@ async function waitForDatabase(config: DatabaseConfig, maxRetries = 45): Promise
   throw new Error('MSSQL container failed to become ready within timeout');
 }
 
-async function safeDisconnect(connector: ReturnType<typeof ConnectionFactory.create>): Promise<void> {
+async function safeDisconnect(
+  connector: ReturnType<typeof ConnectionFactory.create>,
+): Promise<void> {
   try {
     await connector.disconnect();
   } catch {

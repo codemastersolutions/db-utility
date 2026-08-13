@@ -28,7 +28,7 @@ describe('assertSafeSql', () => {
   it('bloqueia comandos DML e DDL', () => {
     const queries = [
       'INSERT INTO users(id) VALUES (1)',
-      'UPDATE users SET name = \'a\'',
+      "UPDATE users SET name = 'a'",
       'DELETE FROM users',
       'DROP TABLE users',
       'TRUNCATE TABLE users',
@@ -42,14 +42,10 @@ describe('assertSafeSql', () => {
   });
 
   it('bloqueia selects em tabelas de dados', () => {
-    const queries = [
-      'SELECT * FROM users',
-      'select id, name from customers',
-    ];
+    const queries = ['SELECT * FROM users', 'select id, name from customers'];
 
     queries.forEach((sql) => {
       expect(() => assertSafeSql(sql)).toThrow();
     });
   });
 });
-

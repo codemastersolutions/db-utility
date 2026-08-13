@@ -754,7 +754,9 @@ describe('MigrationTester', () => {
       if (pathStr.endsWith('package.json')) return false;
       return false;
     });
-    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ type: 'postgres', version: '14.5' }));
+    vi.mocked(fs.readFileSync).mockReturnValue(
+      JSON.stringify({ type: 'postgres', version: '14.5' }),
+    );
     vi.mocked(fetch).mockResolvedValue({
       ok: true,
       json: vi.fn().mockResolvedValue({

@@ -151,6 +151,8 @@ describe('Sequelize Migration Defaults', () => {
 
     expect(migration.content).toContain('type: Sequelize.DATE');
     expect(migration.content).not.toContain('defaultValue: 0');
-    expect(migration.content).not.toContain('DATAFECHAMENTOFACTOR: {\n        type: Sequelize.DATE,\n        defaultValue');
+    expect(migration.content).not.toContain(
+      'DATAFECHAMENTOFACTOR: {\n        type: Sequelize.DATE,\n        defaultValue',
+    );
   });
 });

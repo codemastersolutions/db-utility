@@ -127,7 +127,8 @@ The `introspection.outputDir` and `migrations.outputDir` fields accept both rela
     "password": "mypassword",
     "database": "mydb",
     "ssl": false,
-    "connectTimeoutMs": 15000
+    "connectTimeoutMs": 15000,
+    "encrypted": false
   },
   "connections": {
     "development": {
@@ -137,7 +138,8 @@ The `introspection.outputDir` and `migrations.outputDir` fields accept both rela
       "username": "root",
       "password": "password",
       "database": "dev_db",
-      "connectTimeoutMs": 15000
+      "connectTimeoutMs": 15000,
+      "encrypted": false
     },
     "production": {
       "type": "postgres",
@@ -147,11 +149,56 @@ The `introspection.outputDir` and `migrations.outputDir` fields accept both rela
       "password": "secure_password",
       "database": "prod_db",
       "ssl": true,
-      "connectTimeoutMs": 15000
+      "connectTimeoutMs": 15000,
+      "encrypted": false
     }
   }
 }
 ```
+
+> **Encrypted Connection Credentials**: To avoid storing plaintext secrets in `dbutility.config.json`, set `"encrypted": true` on each connection and replace the `host`, `port`, `username`, `password`, and `database` values with the outputs produced by `dbutility encrypt "<plaintext>"`. The encryption key must be provided via the `DBUTILITY_ENCRYPTION_KEY` environment variable. The library automatically decrypts the values before connecting to the database.
+
+**Step-by-step: Encrypted Connection Credentials**
+
+1. **Generate a strong encryption key** and store it in your `.env` file or system environment variables. You can use any cryptographically strong random value (at least 32 characters):
+   ```bash
+   openssl rand -hex 32
+   ```
+2. **Add the key** to the environment (`.env` file for the project is the recommended place):
+   ```env
+   DBUTILITY_ENCRYPTION_KEY="your-random-64-char-value-from-step-1"
+   ```
+   The library also accepts aliases: `DB_UTILITY_ENCRYPTION_KEY`, `DBUTILITY_CRYPTO_KEY`, or `DB_UTILITY_CRYPTO_KEY`.
+3. **Encrypt each of the 5 sensitive fields** with the CLI:
+   ```bash
+   dbutility encrypt "prod-db.internal.example"     # host
+   dbutility encrypt "1433"                          # port (as a string, it is encrypted and later parsed back to integer)
+   dbutility encrypt "app_user"                      # username
+   dbutility encrypt "StrongP@ssW0rd!123"            # password
+   dbutility encrypt "production_db"                 # database
+   ```
+4. **Replace the plain values** in `dbutility.config.json` with the encrypted strings and mark the connection:
+   ```json
+   {
+     "connection": {
+       "type": "postgres",
+       "host": "<encrypted-host>",
+       "port": "<encrypted-port>",
+       "username": "<encrypted-username>",
+       "password": "<encrypted-password>",
+       "database": "<encrypted-database>",
+       "ssl": true,
+       "connectTimeoutMs": 15000,
+       "encrypted": true
+     }
+   }
+   ```
+5. **Important notes**:
+   - Only these 5 fields are encrypted: `host`, `port`, `username`, `password`, `database`.
+   - NEVER encrypt `type`, `ssl`, `connectTimeoutMs`, or `encrypted` itself; keep them as plain values.
+   - The same `DBUTILITY_ENCRYPTION_KEY` must be present in every environment where DbUtility runs (developer laptops, CI/CD, deployment servers).
+   - If you lose the encryption key, there is no way to recover the encrypted values; treat the key with the same level of care as any other secret.
+   - The encrypted `port` is stored as a cipher string; after decryption it is parsed back to an integer automatically.
 
 The `migrations` property accepts either a single object or an array of objects. When it is an array, the `migrations` command runs the process for each item in the declared order.
 
@@ -270,9 +317,11 @@ Set `migrations.disableForeignKeys` to `true` to skip generating `add-fks-*` mig
 
 ### Existing Table Guard Configuration
 
-By default, generated create-table migrations check whether the target table already exists before calling `createTable`. If the table already exists, the migration prints a message to the terminal and returns success so execution can continue without interruption.
+By default, generated create-table migrations check whether the target table already exists before calling `createTable`. If the table already exists, the migration prints a message to the terminal and returns success so execution can continue without interruption. This prevents failures caused by tables that were manually created before the migrations run.
 
-Set `migrations.disableTableExistsCheck` to `true` to disable this guard. The default value is `false`.
+On **Sequelize 5.x** (where `queryInterface.tableExists` is not available), the generated migration falls back to `queryInterface.describeTable` and treats a "table does not exist" error as a non-existent table, so the guard works across both Sequelize 5 and Sequelize 6 transparently.
+
+Set `migrations.disableTableExistsCheck` to `true` to disable this guard. The default value is `false`. Use this when you want a hard failure if a create-table migration runs against an already-existing schema object.
 
 ```json
 {
@@ -358,6 +407,19 @@ Supported object formats:
 
 When the object does not include `registry`, DbUtility first tries the full value from `image`. If no image is found, it retries using Docker Hub. If it still cannot find a valid image, the test process is interrupted with an error message.
 
+**Practical Version Mapping**
+
+| `testDatabase` value | DB type (from introspection) | Resolved Docker image example                |
+| -------------------- | ---------------------------- | -------------------------------------------- |
+| `"2019"`             | MSSQL                        | `mcr.microsoft.com/mssql/server:2019-latest` |
+| `"2016"`             | MSSQL                        | `mcr.microsoft.com/mssql/server:2016-latest` |
+| `"8"`                | MySQL                        | `mysql:8.<latest-minor>.<latest-patch>`      |
+| `"5.7"`              | MySQL                        | `mysql:5.7.<latest-patch>`                   |
+| `"18.4"`             | PostgreSQL                   | `postgres:18.4`                              |
+| `"16"`               | PostgreSQL                   | `postgres:16-alpine` or latest tag           |
+
+For version-only strings like `"8"`, DbUtility progressively resolves the most recent available tag (`8.x.y`, falling back to `8.x`, then `8`, stopping at the first existing image that Docker Hub returns. Private registries require the image to be already accessible from the local Docker daemon (run `docker login <registry>` beforehand).
+
 ### Multiple Connections
 
 You can define multiple connections within the `connections` property and use them in the CLI with the `--conn <name>` flag.
@@ -416,6 +478,13 @@ DB_USER=myuser
 DB_PASSWORD=mypassword
 DB_NAME=mydb
 DB_CONNECT_TIMEOUT_MS=15000
+
+# Encryption Key used to decrypt DB connection fields (host, port, username, password, database)
+# when "encrypted": true is set in the config or DBUTILITY_DB_ENCRYPTED=true.
+DBUTILITY_ENCRYPTION_KEY="replace-with-a-strong-random-secret"
+
+# When true, the DB_* connection values are expected to be encrypted via the key above.
+# DBUTILITY_DB_ENCRYPTED=true
 ```
 
 ## CLI Commands & Flags
@@ -445,6 +514,24 @@ DB_CONNECT_TIMEOUT_MS=15000
 | `-d, --database <database>` | Database name                                 |
 | `--ssl`                     | Enable SSL connection                         |
 | `--connect-timeout <ms>`    | Connection timeout (ms)                       |
+
+#### `encrypt` / `decrypt`
+
+Encrypts (or decrypts) a single value using the key configured via `DBUTILITY_ENCRYPTION_KEY`. Use the encrypted outputs with `encrypted: true` in the connection configuration.
+
+```bash
+# Encrypt connection secrets one by one:
+dbutility encrypt "db.example.internal"
+dbutility encrypt "1433"
+dbutility encrypt "sa"
+dbutility encrypt "MyStr0ng!P@ss"
+dbutility encrypt "app_production"
+
+# Decrypt a previously encrypted value for debugging:
+dbutility decrypt "<encrypted-value>"
+```
+
+> **Default Behavior**: By default, credentials are stored in plaintext in the config file. To enable encrypted fields, use `dbutility encrypt` for each sensitive value, place the resulting strings in place of the plaintext values, and set `"encrypted": true` on the connection (or `DBUTILITY_DB_ENCRYPTED=true`). Remember to provide the same `DBUTILITY_ENCRYPTION_KEY` that was used during encryption. To disable the built-in credential encryption feature, simply keep or set `"encrypted": false` on your connection(s).
 
 ### Commands
 
@@ -564,6 +651,86 @@ dbutility migrations --target typeorm --conn production
 
 ```bash
 dbutility migrations --target sequelize --conn development --data --tables "users,roles"
+```
+
+### End-to-End: Encrypted credentials for a production connection
+
+1. Generate the key and put it in `.env`:
+   ```bash
+   openssl rand -hex 32 > /tmp/dbkey
+   # copy output into .env as DBUTILITY_ENCRYPTION_KEY=...
+   ```
+2. Encrypt the 5 connection values:
+   ```bash
+   export DBUTILITY_ENCRYPTION_KEY=$(cat /tmp/dbkey)
+   dbutility encrypt "prod-db.company.internal"
+   dbutility encrypt "5432"
+   dbutility encrypt "app_prod"
+   dbutility encrypt "xxxxxxxxxxxxxxxx"
+   dbutility encrypt "app_production"
+   ```
+3. Paste outputs into `dbutility.config.json` and mark the connection with `"encrypted": true`.
+4. Verify the connection without exposing plaintext:
+   ```bash
+   dbutility connect --conn production
+   ```
+
+### Generate isolated migrations for just two catalog/lookup tables (isolated migrations for a second database
+
+When you need to export only two lookup tables such as `status` and `roles` independently of the rest of the schema, declare them in `migrations.dataTables` and enable the isolated-flag:
+
+```json
+{
+  "migrations": {
+    "outputDir": "exports/migrations/lookups",
+    "exportOnlyInDataTables": true,
+    "dataTables": ["status", "roles"],
+    "disableTableExistsCheck": false
+  }
+}
+```
+
+```bash
+dbutility migrations --target sequelize --conn development
+```
+
+This produces schema migrations **only** for `status` and `roles`, with `disableForeignKeys` is automatically `true`, so there are no `add-fks-*` files and the resulting migrations work stand alone against any compatible database.
+
+### Generate migrations and test them against a specific SQL Server version
+
+If your production cluster is still on SQL Server 2016 but you want migrations to be validated for a newer 2019 target:
+
+```json
+{
+  "migrations": {
+    "backup": true,
+    "testDatabase": "2019"
+  }
+}
+```
+
+```bash
+dbutility migrations --target sequelize --conn production
+```
+
+The type of database (MSSQL) is detected from `database-info.json`, and the test runner spins up `mcr.microsoft.com/mssql/server:2019-latest` for the validation.
+
+### Disable the default create-table existence guard (force hard-fail behavior
+
+For CI pipelines that want fail when tables already exist, disable the default guard:
+
+```bash
+dbutility migrations --target typeorm --conn staging --disable-table-exists-check
+```
+
+or configure it in the configuration file:
+
+```json
+{
+  "migrations": {
+    "disableTableExistsCheck": true
+  }
+}
 ```
 
 ## License

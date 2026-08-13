@@ -32,18 +32,14 @@ describe('Generated migration existing table guards', () => {
     const migration = migrations.find((file) => file.fileName.includes('create-audit_Users'));
 
     expect(migration).toBeDefined();
-    expect(migration?.content).toContain(
-      "if (typeof queryInterface.tableExists === 'function') {",
-    );
+    expect(migration?.content).toContain("if (typeof queryInterface.tableExists === 'function') {");
     expect(migration?.content).toContain(
       "tableExists = await queryInterface.tableExists({ tableName: 'Users', schema: 'audit' });",
     );
     expect(migration?.content).toContain(
       "await queryInterface.describeTable({ tableName: 'Users', schema: 'audit' });",
     );
-    expect(migration?.content).toContain(
-      "errorMessage.includes('no description found for')",
-    );
+    expect(migration?.content).toContain("errorMessage.includes('no description found for')");
     expect(migration?.content).toContain(
       'console.log("Skipping table creation for \\"audit.Users\\" because it already exists.");',
     );

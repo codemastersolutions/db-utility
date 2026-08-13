@@ -31,6 +31,7 @@ describe('ConfigInitializer', () => {
       exportOnlyInDataTables: false,
     });
     expect((parsed.migrations as Record<string, unknown>).testDatabase).toBeUndefined();
+    expect((parsed.connection as Record<string, unknown>).encrypted).toBe(false);
   });
 
   it('não deve recriar arquivo quando já existe e force = false', () => {

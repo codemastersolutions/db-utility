@@ -23,7 +23,9 @@ export function getGeneratableIndexes(
   indexes: IndexMetadata[],
   maxKeyColumns = INDEX_KEY_COLUMN_LIMIT,
 ): IndexMetadata[] {
-  return indexes.filter((index) => index.columns.length > 0 && index.columns.length <= maxKeyColumns);
+  return indexes.filter(
+    (index) => index.columns.length > 0 && index.columns.length <= maxKeyColumns,
+  );
 }
 
 export function analyzeSchemaLimits(

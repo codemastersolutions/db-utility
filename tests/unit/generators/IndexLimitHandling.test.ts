@@ -74,7 +74,9 @@ describe('Index Limit Handling', () => {
     const generator = new MongooseGenerator();
     const [model] = await generator.generate(schema);
 
-    expect(model.content).toContain("LPUBLICSchema.index({ COL_1: 1, COL_2: 1 }, { name: 'IDX_VALID'");
+    expect(model.content).toContain(
+      "LPUBLICSchema.index({ COL_1: 1, COL_2: 1 }, { name: 'IDX_VALID'",
+    );
     expect(model.content).not.toContain('LXLPUBLIC_01');
   });
 });

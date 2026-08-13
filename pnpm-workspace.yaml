@@ -1,6 +1,9 @@
 packages:
   - '.'
 
+allowBuilds:
+  '@codemastersolutions/commitzero': true
+
 autoInstallPeers: false
 onlyBuiltDependencies:
   - esbuild
