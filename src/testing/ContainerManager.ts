@@ -34,7 +34,7 @@ export class ContainerManager {
     volumes?: Record<string, string>,
   ): Promise<string> {
     const envString = Object.entries(env)
-      .map(([key, value]) => `-e ${key}='${value}'`)
+      .map(([key, value]) => `-e ${key}=${shellEscape(value)}`)
       .join(' ');
 
     const volumeString = volumes
@@ -43,10 +43,13 @@ export class ContainerManager {
           .join(' ')
       : '';
 
-    // --rm ensures container is removed when stopped (though we manually stop/rm to be safe)
+    // NOTE: intentionally NOT using --rm. If the container dies during startup
+    // (e.g. MSSQL exits due to OOM or password policy), we still need to read
+    // its logs with `docker logs`. We clean up explicitly with `docker rm -f`
+    // in stopContainer().
     // -d detached
     // -p hostPort:containerPort
-    const parts = ['docker', 'run', '-d', '--rm', '-p', `${port}:${internalPort}`];
+    const parts = ['docker', 'run', '-d', '-p', `${port}:${internalPort}`];
 
     if (envString) parts.push(envString);
     if (volumeString) parts.push(volumeString);
@@ -56,26 +59,37 @@ export class ContainerManager {
     const command = parts.join(' ');
 
     try {
-      const { stdout } = await execAsync(command);
+      const { stdout, stderr } = await execAsync(command);
       const containerId = stdout.trim();
 
-      // Wait for container to be ready (basic wait, real readiness check is better handled by connection retries)
-      // But for some DBs like MSSQL/Oracle, startup is slow.
-      // We will handle readiness by retrying connection in the tester.
+      if (!containerId) {
+        const detail = stderr ? `\nstderr: ${stderr}` : '';
+        throw new Error(`docker run produced no container id.${detail}`);
+      }
 
       return containerId;
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const stderr =
+        error && typeof error === 'object' && 'stderr' in error
+          ? String((error as { stderr?: unknown }).stderr ?? '')
+          : '';
       throw new Error(
-        `Failed to start container: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to start container: ${message}${stderr ? `\nstderr: ${stderr}` : ''}`,
       );
     }
   }
 
   async stopContainer(containerId: string): Promise<void> {
     try {
-      await execAsync(`docker stop ${shellEscape(containerId)}`);
+      // Use rm -f so we also clean up containers that already exited
+      // (they would otherwise linger now that we dropped --rm on start).
+      await execAsync(`docker rm -f ${shellEscape(containerId)}`);
     } catch (error) {
-      console.error(`Failed to stop container ${containerId}:`, error);
+      // "No such container" is not an error — it just means cleanup already happened.
+      const message = error instanceof Error ? error.message : String(error);
+      if (typeof message === 'string' && /No such container/i.test(message)) return;
+      console.error(`Failed to stop/remove container ${containerId}:`, error);
     }
   }
 
@@ -95,7 +109,14 @@ export class ContainerManager {
       const { stdout, stderr } = await execAsync(
         `docker logs --tail ${lines} ${shellEscape(containerId)} 2>&1`,
       );
-      return (stdout || '') + (stderr || '');
+      const combined = (stdout || '') + (stderr || '');
+      if (combined.trim().length > 0) return combined;
+
+      // Container exited so quickly there are no logs yet — try inspecting the state.
+      const { stdout: inspectOut } = await execAsync(
+        `docker inspect -f 'Status={{.State.Status}} Exit={{.State.ExitCode}} Error={{.State.Error}}' ${shellEscape(containerId)}`,
+      );
+      return `(container produced no runtime logs; state: ${inspectOut.trim()})`;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return `(could not retrieve container logs: ${message})`;

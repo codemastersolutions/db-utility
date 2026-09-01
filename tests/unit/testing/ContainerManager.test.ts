@@ -54,9 +54,9 @@ describe('ContainerManager', () => {
     expect(result).toBe(false);
   });
 
-  it('startContainer should run correct docker command', async () => {
+  it('startContainer should run correct docker command (no --rm, escaped env values)', async () => {
     (exec as unknown as ReturnType<typeof vi.fn>).mockImplementation((cmd, cb) => {
-      cb(null, { stdout: 'container123\n' });
+      cb(null, { stdout: 'container123\n', stderr: '' });
     });
 
     const manager = new ContainerManager();
@@ -64,20 +64,53 @@ describe('ContainerManager', () => {
 
     expect(id).toBe('container123');
     expect(exec).toHaveBeenCalledWith(
-      expect.stringContaining("docker run -d --rm -p 5432:5432 -e FOO='bar' postgres:14"),
+      expect.stringContaining('docker run -d -p 5432:5432'),
       expect.any(Function),
     );
+    expect(exec).toHaveBeenCalledWith(
+      expect.stringContaining("-e FOO='bar' postgres:14"),
+      expect.any(Function),
+    );
+    expect(exec).toHaveBeenCalledWith(expect.not.stringContaining('--rm'), expect.any(Function));
   });
 
-  it('stopContainer should run correct docker stop command', async () => {
-    (exec as unknown as ReturnType<typeof vi.fn>).mockImplementation((cmd, cb) => {
-      cb(null, { stdout: '' });
+  it('startContainer should include stderr detail when docker run fails or returns empty id', async () => {
+    (exec as unknown as ReturnType<typeof vi.fn>).mockImplementation((_cmd, cb) => {
+      // promisify(exec) attaches stderr/stdout onto the error when the callback errors.
+      const error = new Error('exit code 125') as Error & { stderr: string; stdout: string };
+      (error as { stderr: string }).stderr = 'Unable to find image';
+      (error as { stdout: string }).stdout = '';
+      cb(error);
     });
 
     const manager = new ContainerManager();
-    await manager.stopContainer('container123');
+    await expect(manager.startContainer('broken:tag', {}, 1234)).rejects.toThrow(
+      /Unable to find image/,
+    );
+  });
 
-    expect(exec).toHaveBeenCalledWith("docker stop 'container123'", expect.any(Function));
+  it('stopContainer should use docker rm -f (not docker stop) and swallow No such container', async () => {
+    const calls: unknown[] = [];
+    (exec as unknown as ReturnType<typeof vi.fn>).mockImplementation((cmd, cb) => {
+      calls.push(cmd);
+      if (String(cmd).includes('NoSuch')) {
+        cb(new Error('Error response from daemon: No such container: NoSuch'));
+        return;
+      }
+      cb(null, { stdout: '' });
+    });
+
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const manager = new ContainerManager();
+    await manager.stopContainer('container123');
+    await manager.stopContainer('NoSuch');
+
+    expect(calls).toContain("docker rm -f 'container123'");
+    expect(calls).toContain("docker rm -f 'NoSuch'");
+    // NoSuch should NOT trigger console.error
+    expect(errorSpy).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 
   it('copyFromContainer should run correct docker cp command', async () => {
