@@ -1,0 +1,39 @@
+=== Running tests with sequelize v5.22.5 ===
+Testing against mssql 2019...
+Starting container mcr.microsoft.com/mssql/server:2019-latest on port 41289...
+Backup flag: true
+Waiting for database to be ready...
+
+[ERROR DETAILS] Database failed to start within timeout
+Error: Database failed to start within timeout
+    at MigrationTester.waitForDb (/home/gilsongabriel/.nvm/versions/node/v24.18.0/lib/node_modules/@codemastersolutions/db-utility/dist/testing/MigrationTester.js:646:15)
+    at async MigrationTester.runTest (/home/gilsongabriel/.nvm/versions/node/v24.18.0/lib/node_modules/@codemastersolutions/db-utility/dist/testing/MigrationTester.js:545:13)
+    at async MigrationTester.test (/home/gilsongabriel/.nvm/versions/node/v24.18.0/lib/node_modules/@codemastersolutions/db-utility/dist/testing/MigrationTester.js:130:32)
+    at async runTest (/home/gilsongabriel/.nvm/versions/node/v24.18.0/lib/node_modules/@codemastersolutions/db-utility/dist/cli/index.js:135:5)
+    at async Command.<anonymous> (/home/gilsongabriel/.nvm/versions/node/v24.18.0/lib/node_modules/@codemastersolutions/db-utility/dist/cli/index.js:442:9)
+Stopping container...
+Failed to stop container 4074e8c87027f3ec9531264d141d2567dbc976cd78907df5ab41be0c453c087f: Error: Command failed: docker stop '4074e8c87027f3ec9531264d141d2567dbc976cd78907df5ab41be0c453c087f'
+Error response from daemon: No such container: 4074e8c87027f3ec9531264d141d2567dbc976cd78907df5ab41be0c453c087f
+
+    at genericNodeError (node:internal/errors:985:15)
+    at wrappedFn (node:internal/errors:539:14)
+    at ChildProcess.exithandler (node:child_process:417:12)
+    at ChildProcess.emit (node:events:509:28)
+    at maybeClose (node:internal/child_process:1124:16)
+    at ChildProcess._handle.onexit (node:internal/child_process:306:5) {
+  code: 1,
+  killed: false,
+  signal: null,
+  cmd: "docker stop '4074e8c87027f3ec9531264d141d2567dbc976cd78907df5ab41be0c453c087f'",
+  stdout: '',
+  stderr: 'Error response from daemon: No such container: 4074e8c87027f3ec9531264d141d2567dbc976cd78907df5ab41be0c453c087f\n'
+}
+
+--- Migration Test Report ---
+┌─────────┬──────────────────────────────────┬──────────┬──────────┬───────────────────────────────────────────┐
+│ (index) │ Engine                           │ Result   │ Duration │ Error                                     │
+├─────────┼──────────────────────────────────┼──────────┼──────────┼───────────────────────────────────────────┤
+│ 0       │ 'mssql 2019 (sequelize v5.22.5)' │ 'FAILED' │ '60.86s' │ 'Database failed to start within timeout' │
+└─────────┴──────────────────────────────────┴──────────┴──────────┴───────────────────────────────────────────┘
+
+Some tests failed.

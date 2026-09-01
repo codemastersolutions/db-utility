@@ -93,4 +93,54 @@ describe('ContainerManager', () => {
       expect.any(Function),
     );
   });
+
+  it('isContainerRunning should return true when State.Running is true', async () => {
+    (exec as unknown as ReturnType<typeof vi.fn>).mockImplementation((cmd, cb) => {
+      cb(null, { stdout: 'true\n' });
+    });
+
+    const manager = new ContainerManager();
+    const alive = await manager.isContainerRunning('c1');
+    expect(alive).toBe(true);
+    expect(exec).toHaveBeenCalledWith(
+      "docker inspect -f '{{.State.Running}}' 'c1'",
+      expect.any(Function),
+    );
+  });
+
+  it('isContainerRunning should return false when State.Running is false or inspect fails', async () => {
+    (exec as unknown as ReturnType<typeof vi.fn>).mockImplementation((cmd, cb) => {
+      cb(new Error('No such container'));
+    });
+
+    const manager = new ContainerManager();
+    const alive = await manager.isContainerRunning('absent');
+    expect(alive).toBe(false);
+  });
+
+  it('getLastLogs should return combined stdout+stderr from docker logs', async () => {
+    (exec as unknown as ReturnType<typeof vi.fn>).mockImplementation((cmd, cb) => {
+      if (String(cmd).startsWith('docker logs')) {
+        cb(null, { stdout: 'line1\nline2\n', stderr: 'warn1\nwarn2\n' });
+        return;
+      }
+      cb(new Error('unexpected'));
+    });
+
+    const manager = new ContainerManager();
+    const logs = await manager.getLastLogs('c1', 10);
+    expect(logs).toContain('line1\nline2');
+    expect(logs).toContain('warn1\nwarn2');
+    expect(exec).toHaveBeenCalledWith("docker logs --tail 10 'c1' 2>&1", expect.any(Function));
+  });
+
+  it('getLastLogs should return a fallback message when docker logs fails', async () => {
+    (exec as unknown as ReturnType<typeof vi.fn>).mockImplementation((cmd, cb) => {
+      cb(new Error('boom'));
+    });
+
+    const manager = new ContainerManager();
+    const logs = await manager.getLastLogs('c1');
+    expect(logs).toContain('could not retrieve container logs');
+  });
 });

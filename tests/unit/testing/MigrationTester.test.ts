@@ -55,6 +55,9 @@ describe('MigrationTester', () => {
   beforeEach(() => {
     containerManager = new ContainerManager();
 
+    vi.mocked(containerManager.isContainerRunning).mockResolvedValue(true);
+    vi.mocked(containerManager.getLastLogs).mockResolvedValue('mock container logs');
+
     mockPackageManager = {
       isInstalled: vi.fn().mockResolvedValue(false),
       install: vi.fn().mockResolvedValue(undefined),
@@ -773,5 +776,113 @@ describe('MigrationTester', () => {
     expect(containerManager.startContainer).not.toHaveBeenCalled();
     const reportRows = tableSpy.mock.calls[0][0] as Array<Record<string, string>>;
     expect(reportRows[0]?.Error).toContain('No Docker image found');
+  });
+
+  it('should fail fast and include container logs when the DB container dies during readiness check', async () => {
+    vi.mocked(containerManager.checkDocker).mockResolvedValue(true);
+    vi.mocked(containerManager.startContainer).mockResolvedValue('dead123');
+    vi.mocked(containerManager.imageExists).mockResolvedValue(true);
+    vi.mocked(containerManager.isContainerRunning).mockResolvedValue(false);
+    vi.mocked(containerManager.getLastLogs).mockResolvedValue(
+      'sqlservr: This program requires a machine with at least 2000 megabytes of memory.',
+    );
+
+    const mockConnector = {
+      connect: vi.fn().mockRejectedValue(new Error('ECONNREFUSED')),
+      disconnect: vi.fn().mockResolvedValue(undefined),
+      query: vi.fn().mockResolvedValue(undefined),
+      isConnected: vi.fn().mockResolvedValue(false),
+      getVersion: vi.fn().mockResolvedValue('2019'),
+    };
+    vi.mocked(ConnectionFactory.create).mockReturnValue(mockConnector);
+
+    const mockRunner = {
+      run: vi.fn().mockResolvedValue(undefined),
+    };
+    SequelizeRunnerMock.mockImplementation(function () {
+      return mockRunner;
+    } as unknown as new () => unknown);
+
+    vi.mocked(fs.existsSync).mockImplementation((path: fs.PathLike) => {
+      const pathStr = String(path);
+      if (pathStr.endsWith('database-info.json')) return true;
+      if (pathStr.endsWith('package.json')) return false;
+      return false;
+    });
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ type: 'mssql', version: '2019' }));
+
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const tableSpy = vi.spyOn(console, 'table').mockImplementation(() => {});
+
+    await tester.test('sequelize', 'dir', undefined, false, '2019');
+
+    const reportRows = tableSpy.mock.calls[0][0] as Array<Record<string, string>>;
+    expect(reportRows[0]?.Result).toBe('FAILED');
+    expect(reportRows[0]?.Error).toContain('Database container stopped during readiness check');
+    expect(reportRows[0]?.Error).toContain('at least 2000 megabytes');
+    expect(mockRunner.run).not.toHaveBeenCalled();
+  });
+
+  it('should produce a detailed timeout error (retries + last error + logs) when readiness check exhausts attempts', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    vi.mocked(containerManager.checkDocker).mockResolvedValue(true);
+    vi.mocked(containerManager.startContainer).mockResolvedValue('slowContainer');
+    vi.mocked(containerManager.imageExists).mockResolvedValue(true);
+    vi.mocked(containerManager.isContainerRunning).mockResolvedValue(true);
+    vi.mocked(containerManager.getLastLogs).mockResolvedValue(
+      "2026-09-01 00:00:00.00 spid8s      Starting up database 'master'.",
+    );
+
+    const errorOnConnect = new Error(
+      "Login failed for user 'sa'. Reason: Server is in script upgrade mode.",
+    );
+    const mockConnector = {
+      connect: vi.fn().mockRejectedValue(errorOnConnect),
+      disconnect: vi.fn().mockResolvedValue(undefined),
+      query: vi.fn().mockResolvedValue(undefined),
+      isConnected: vi.fn().mockResolvedValue(false),
+      getVersion: vi.fn().mockResolvedValue('2019'),
+    };
+    vi.mocked(ConnectionFactory.create).mockReturnValue(mockConnector);
+
+    const mockRunner = {
+      run: vi.fn().mockResolvedValue(undefined),
+    };
+    SequelizeRunnerMock.mockImplementation(function () {
+      return mockRunner;
+    } as unknown as new () => unknown);
+
+    vi.mocked(fs.existsSync).mockImplementation((path: fs.PathLike) => {
+      const pathStr = String(path);
+      if (pathStr.endsWith('database-info.json')) return true;
+      if (pathStr.endsWith('package.json')) return false;
+      return false;
+    });
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ type: 'mssql', version: '2019' }));
+
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const tableSpy = vi.spyOn(console, 'table').mockImplementation(() => {});
+
+    const testerForTimeout = new MigrationTester(containerManager);
+
+    const testPromise = testerForTimeout.test('sequelize', 'dir', undefined, false, '2019');
+
+    for (let i = 0; i < 500; i++) {
+      await vi.advanceTimersByTimeAsync(1000);
+    }
+
+    await testPromise;
+    vi.useRealTimers();
+
+    const reportRows = tableSpy.mock.calls[0][0] as Array<Record<string, string>>;
+    expect(reportRows[0]?.Result).toBe('FAILED');
+    expect(reportRows[0]?.Error).toContain('Database failed to start within timeout');
+    expect(reportRows[0]?.Error).toContain('retries');
+    expect(reportRows[0]?.Error).toContain('Server is in script upgrade mode');
+    expect(reportRows[0]?.Error).toContain("Starting up database 'master'");
+    expect(mockRunner.run).not.toHaveBeenCalled();
   });
 });

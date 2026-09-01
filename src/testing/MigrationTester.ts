@@ -678,7 +678,7 @@ export class MigrationTester {
         ssl: false,
       };
 
-      await this.waitForDb(config);
+      await this.waitForDb(config, containerId);
 
       // Create DB for MSSQL if needed (Postgres/MySQL create via env)
       if (engine.type === 'mssql') {
@@ -814,20 +814,79 @@ export class MigrationTester {
     throw new Error(`Unsupported test target: ${target}`);
   }
 
-  private async waitForDb(config: DatabaseConfig, maxRetries = 30): Promise<void> {
-    console.log('Waiting for database to be ready...');
+  private async withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+    let handle: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<T>((_resolve, reject) => {
+      handle = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    });
+    try {
+      return await Promise.race([promise, timeout]);
+    } finally {
+      if (typeof handle !== 'undefined') clearTimeout(handle);
+    }
+  }
+
+  private async waitForDb(
+    config: DatabaseConfig,
+    containerId?: string,
+    options?: { maxRetries?: number; attemptMs?: number; sleepMs?: number },
+  ): Promise<void> {
+    const maxRetries = options?.maxRetries ?? 60;
+    const attemptMs = options?.attemptMs ?? 6000;
+    const sleepMs = options?.sleepMs ?? 2000;
+    const totalSeconds = Math.round((maxRetries * sleepMs + attemptMs) / 1000);
+
+    console.log(
+      `Waiting for database to be ready... (up to ${maxRetries} attempts = ~${totalSeconds}s)`,
+    );
+
+    let lastError: unknown;
     for (let i = 0; i < maxRetries; i++) {
+      if (containerId) {
+        const alive = await this.containerManager.isContainerRunning(containerId);
+        if (!alive) {
+          const logs = await this.containerManager.getLastLogs(containerId, 80);
+          throw new Error(
+            'Database container stopped during readiness check. ' +
+              `Last attempt ${i + 1}/${maxRetries}. ` +
+              `Container logs (tail):\n${logs}`,
+          );
+        }
+      }
+
       try {
         const connector = ConnectionFactory.create(config);
-        await connector.connect();
-        await connector.disconnect();
+        await this.withTimeout(
+          (async () => {
+            await connector.connect();
+            await connector.disconnect();
+          })(),
+          attemptMs,
+          'DB readiness probe',
+        );
         console.log('Database is ready.');
         return;
-      } catch {
-        await new Promise((r) => setTimeout(r, 2000)); // Wait 2s
+      } catch (error) {
+        lastError = error;
+        if (i === maxRetries - 1) break;
+        await new Promise((r) => setTimeout(r, sleepMs));
       }
     }
-    throw new Error('Database failed to start within timeout');
+
+    const detailLines: string[] = [];
+    if (containerId) {
+      const alive = await this.containerManager.isContainerRunning(containerId);
+      detailLines.push(`Container still running: ${alive ? 'yes' : 'no'}`);
+      const logs = await this.containerManager.getLastLogs(containerId, 80);
+      detailLines.push(`Container logs (tail):\n${logs}`);
+    }
+    const lastErrorMessage = lastError instanceof Error ? lastError.message : String(lastError);
+    detailLines.push(`Last connection error: ${lastErrorMessage}`);
+
+    throw new Error(
+      `Database failed to start within timeout (~${totalSeconds}s, ${maxRetries} retries).\n` +
+        detailLines.join('\n'),
+    );
   }
 
   private printReport(results: TestResult[]) {

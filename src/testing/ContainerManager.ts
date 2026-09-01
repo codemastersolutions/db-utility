@@ -79,6 +79,29 @@ export class ContainerManager {
     }
   }
 
+  async isContainerRunning(containerId: string): Promise<boolean> {
+    try {
+      const { stdout } = await execAsync(
+        `docker inspect -f '{{.State.Running}}' ${shellEscape(containerId)}`,
+      );
+      return stdout.trim() === 'true';
+    } catch {
+      return false;
+    }
+  }
+
+  async getLastLogs(containerId: string, lines = 60): Promise<string> {
+    try {
+      const { stdout, stderr } = await execAsync(
+        `docker logs --tail ${lines} ${shellEscape(containerId)} 2>&1`,
+      );
+      return (stdout || '') + (stderr || '');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return `(could not retrieve container logs: ${message})`;
+    }
+  }
+
   async execInContainer(
     containerId: string,
     command: string,
