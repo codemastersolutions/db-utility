@@ -20,6 +20,10 @@ export class DataExtractor {
       const whereClause = typeof tableConfig === 'string' ? undefined : tableConfig.where;
       const disableIdentity =
         typeof tableConfig === 'string' ? undefined : tableConfig.disableIdentity;
+      const allowedColumns =
+        typeof tableConfig === 'string' || !tableConfig.columns || tableConfig.columns.length === 0
+          ? undefined
+          : new Set(tableConfig.columns);
 
       const [requestedSchemaName, requestedTableName] = this.parseRequestedTableName(tableName);
       const targetKey = buildTableKey(requestedSchemaName, requestedTableName);
@@ -32,21 +36,48 @@ export class DataExtractor {
         continue;
       }
 
+      const filteredColumns = allowedColumns
+        ? table.columns.filter((c) => allowedColumns.has(c.name))
+        : table.columns;
+
+      if (allowedColumns && filteredColumns.length === 0) {
+        console.warn(
+          `No matching columns found for table ${tableName} with specified column filter, skipping.`,
+        );
+        continue;
+      }
+
       const quotedName = this.quoteIdentifier(table);
-      let sql = `SELECT * FROM ${quotedName}`;
+      const columnList = allowedColumns
+        ? Array.from(allowedColumns)
+            .map((c) => this.quoteSingleIdentifier(c))
+            .join(', ')
+        : '*';
+      let sql = `SELECT ${columnList} FROM ${quotedName}`;
 
       if (whereClause) {
         sql += ` WHERE ${whereClause}`;
       }
 
       try {
-        const rows = await this.connector.query<Record<string, unknown>>(sql, [], {
+        const rawRows = await this.connector.query<Record<string, unknown>>(sql, [], {
           bypassSafety: true,
         });
+        const rows = allowedColumns
+          ? rawRows.map((row) => {
+              const filtered: Record<string, unknown> = {};
+              for (const col of Array.from(allowedColumns)) {
+                if (Object.prototype.hasOwnProperty.call(row, col)) {
+                  filtered[col] = row[col];
+                }
+              }
+              return filtered;
+            })
+          : rawRows;
         result.push({
           tableName: table.name,
           schemaName: table.schemaName,
-          columns: table.columns,
+          columns: filteredColumns,
           rows,
           disableIdentity,
         });
@@ -77,6 +108,19 @@ export class DataExtractor {
         return formatMssqlQualifiedTableName(table);
       default:
         return `"${table.name}"`;
+    }
+  }
+
+  private quoteSingleIdentifier(identifier: string): string {
+    switch (this.type) {
+      case 'postgres':
+        return `"${identifier}"`;
+      case 'mysql':
+        return `\`${identifier}\``;
+      case 'mssql':
+        return `[${identifier}]`;
+      default:
+        return `"${identifier}"`;
     }
   }
 }

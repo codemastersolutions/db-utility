@@ -112,7 +112,11 @@ The `introspection.outputDir` and `migrations.outputDir` fields accept both rela
     "outputDir": "db-utility-migrations",
     "fileNamePattern": "timestamp-prefix",
     "data": true,
-    "dataTables": ["users", { "table": "logs", "where": "level = 'ERROR'" }],
+    "dataTables": [
+      "users",
+      { "table": "logs", "where": "level = 'ERROR'" },
+      { "table": "audit_events", "columns": ["id", "event_type", "created_at"] }
+    ],
     "backup": true,
     "disableForeignKeys": false,
     "disableTableExistsCheck": false,
@@ -281,6 +285,13 @@ You can configure the automatic version check in `dbutility.config.json`.
 
 The `dataTables` option allows you to specify which tables should have their data exported (for seeds). You can provide a simple list of table names or an object with a `where` clause to filter the data.
 
+You can also restrict which columns are exported for both **schema generation** (models/migrations) and **data extraction** (seeds) by using the optional `columns` array. When `columns` is provided:
+
+- only the listed columns are included in the generated models/migrations (columns, indexes and foreign keys that reference non-listed columns are automatically excluded from the schema output);
+- only those columns are selected during data extraction (`SELECT col1, col2, ...` instead of `SELECT *`), keeping the seed payload small;
+- indexes are only preserved when **all** of their key columns and `includedColumns` are in the allowed list;
+- foreign keys are only preserved when **all** of their local columns and referenced columns are in the allowed list.
+
 ```json
 "dataTables": [
   "roles",
@@ -293,6 +304,16 @@ The `dataTables` option allows you to specify which tables should have their dat
   {
     "table": "logs",
     "where": "level = 'ERROR'"
+  },
+  {
+    "table": "audit_events",
+    "columns": ["id", "event_type", "created_at", "user_id"]
+  },
+  {
+    "table": "large_table",
+    "where": "created_at >= DATEADD(year, -1, GETDATE())",
+    "disableIdentity": true,
+    "columns": ["id", "name", "status", "created_at", "updated_at"]
   }
 ]
 ```
@@ -714,6 +735,42 @@ dbutility migrations --target sequelize --conn production
 ```
 
 The type of database (MSSQL) is detected from `database-info.json`, and the test runner spins up `mcr.microsoft.com/mssql/server:2019-latest` for the validation.
+
+### Generate migrations for a subset of columns from a wide table
+
+When dealing with very large tables that have dozens of columns, you can export only the columns you need for a secondary database or microservice. Combine `columns` with `exportOnlyInDataTables` to generate minimal, self-contained migrations:
+
+```json
+{
+  "migrations": {
+    "outputDir": "exports/migrations/customer-slim",
+    "exportOnlyInDataTables": true,
+    "data": true,
+    "dataTables": [
+      {
+        "table": "Customers",
+        "where": "IsActive = 1",
+        "disableIdentity": true,
+        "columns": [
+          "Id",
+          "CustomerCode",
+          "LegalName",
+          "TradeName",
+          "DocumentNumber",
+          "CreatedAt",
+          "UpdatedAt"
+        ]
+      }
+    ]
+  }
+}
+```
+
+```bash
+dbutility migrations --target sequelize --conn erp-db
+```
+
+Only the 7 declared columns appear in the generated schema migrations (including the PK and any indexes/foreign keys fully contained within them), and the seed data exports only those fields, keeping the payload lightweight.
 
 ### Disable the default create-table existence guard (force hard-fail behavior
 

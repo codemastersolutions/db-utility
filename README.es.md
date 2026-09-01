@@ -112,7 +112,11 @@ Los campos `introspection.outputDir` y `migrations.outputDir` aceptan rutas rela
     "outputDir": "db-utility-migrations",
     "fileNamePattern": "timestamp-prefix",
     "data": true,
-    "dataTables": ["usuarios", { "table": "logs", "where": "nivel = 'ERROR'" }],
+    "dataTables": [
+      "usuarios",
+      { "table": "logs", "where": "nivel = 'ERROR'" },
+      { "table": "eventos_auditoria", "columns": ["id", "tipo_evento", "creado_en"] }
+    ],
     "backup": true,
     "disableForeignKeys": false,
     "disableTableExistsCheck": false,
@@ -281,6 +285,13 @@ Puede configurar la verificación automática de versión en `dbutility.config.j
 
 La opción `dataTables` permite especificar qué tablas deben tener sus datos exportados (para seeds). Puede proporcionar una lista simple de nombres de tablas o un objeto con una cláusula `where` para filtrar los datos.
 
+También puede restringir qué columnas se exportan tanto en la **generación de esquema** (models/migrations) como en la **extracción de datos** (seeds) usando el array opcional `columns`. Cuando se proporciona `columns`:
+
+- solo las columnas listadas se incluyen en los models/migrations generados (columnas, índices y claves foráneas que referencien columnas fuera de la lista se excluyen automáticamente de la salida del esquema);
+- solamente esas columnas se seleccionan durante la extracción de datos (`SELECT col1, col2, ...` en lugar de `SELECT *`), manteniendo el payload de seed reducido;
+- los índices solo se preservan cuando **todas** sus columnas clave y `includedColumns` están en la lista permitida;
+- las claves foráneas solo se preservan cuando **todas** sus columnas locales y columnas referenciadas están en la lista permitida.
+
 ```json
 "dataTables": [
   "roles",
@@ -293,6 +304,16 @@ La opción `dataTables` permite especificar qué tablas deben tener sus datos ex
   {
     "table": "registros",
     "where": "nivel = 'ERROR'"
+  },
+  {
+    "table": "eventos_auditoria",
+    "columns": ["id", "tipo_evento", "creado_en", "id_usuario"]
+  },
+  {
+    "table": "tabla_grande",
+    "where": "creado_en >= DATEADD(year, -1, GETDATE())",
+    "disableIdentity": true,
+    "columns": ["id", "nombre", "estado", "creado_en", "actualizado_en"]
   }
 ]
 ```
@@ -714,6 +735,42 @@ dbutility migrations --target sequelize --conn produccion
 ```
 
 El tipo de base de datos (MSSQL) se detecta desde `database-info.json`, y el runner de pruebas levanta la imagen `mcr.microsoft.com/mssql/server:2019-latest` para la validación.
+
+### Generar migraciones solo con un subconjunto de columnas de una tabla ancha
+
+Cuando trabaje con tablas muy grandes que tienen decenas de columnas, puede exportar solo las columnas que necesita para una base de datos secundaria o microservicio. Combine `columns` con `exportOnlyInDataTables` para generar migraciones mínimas y autocontenidas:
+
+```json
+{
+  "migrations": {
+    "outputDir": "exports/migrations/cliente-slim",
+    "exportOnlyInDataTables": true,
+    "data": true,
+    "dataTables": [
+      {
+        "table": "Clientes",
+        "where": "Activo = 1",
+        "disableIdentity": true,
+        "columns": [
+          "Id",
+          "CodigoCliente",
+          "RazonSocial",
+          "NombreComercial",
+          "CIF",
+          "CreadoEn",
+          "ActualizadoEn"
+        ]
+      }
+    ]
+  }
+}
+```
+
+```bash
+dbutility migrations --target sequelize --conn erp-db
+```
+
+Solo las 7 columnas declaradas aparecen en las migraciones de esquema generadas (incluida la PK y cualquier índice/clave foránea totalmente contenida en ellas), y los datos de seed exportan solo esos campos, manteniendo el payload ligero.
 
 ### Deshabilitar la verificación predeterminada de existencia de tabla (fallo explícito)
 

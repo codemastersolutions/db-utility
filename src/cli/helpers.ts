@@ -85,17 +85,51 @@ export const filterSchemaByDataTables = (
   schema: DatabaseSchema,
   tables: (string | DataTableConfig)[],
 ): DatabaseSchema => {
+  const tableConfigMap = new Map<string, { columns?: string[] }>();
   const selectedTableKeys = new Set(
     tables.map((entry) => {
       const rawTableName = typeof entry === 'string' ? entry : entry.table;
       const [schemaName, tableName] = parseRequestedTableName(rawTableName);
-      return buildTableKey(schemaName, tableName);
+      const key = buildTableKey(schemaName, tableName);
+      if (typeof entry !== 'string' && entry.columns) {
+        tableConfigMap.set(key, { columns: entry.columns });
+      }
+      return key;
     }),
   );
 
+  const filteredTables = schema.tables
+    .filter((table) => selectedTableKeys.has(getTableKey(table)))
+    .map((table) => {
+      const cfg = tableConfigMap.get(getTableKey(table));
+      if (!cfg || !cfg.columns || cfg.columns.length === 0) {
+        return table;
+      }
+
+      const allowedColumns = new Set(cfg.columns);
+      const filteredColumns = table.columns.filter((c) => allowedColumns.has(c.name));
+      const filteredIndexes = table.indexes.filter(
+        (idx) =>
+          idx.columns.every((c) => allowedColumns.has(c)) &&
+          (idx.includedColumns ?? []).every((c) => allowedColumns.has(c)),
+      );
+      const filteredForeignKeys = table.foreignKeys.filter(
+        (fk) =>
+          fk.columns.every((c) => allowedColumns.has(c)) &&
+          fk.referencedColumns.every((c) => allowedColumns.has(c)),
+      );
+
+      return {
+        ...table,
+        columns: filteredColumns,
+        indexes: filteredIndexes,
+        foreignKeys: filteredForeignKeys,
+      };
+    });
+
   return {
     ...schema,
-    tables: schema.tables.filter((table) => selectedTableKeys.has(getTableKey(table))),
+    tables: filteredTables,
   };
 };
 

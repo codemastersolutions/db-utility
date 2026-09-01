@@ -11,6 +11,7 @@ export interface DataTableConfig {
   table: string;
   where?: string;
   disableIdentity?: boolean;
+  columns?: string[];
 }
 
 export interface MigrationTestDatabaseImageConfig {
