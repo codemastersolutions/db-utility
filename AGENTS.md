@@ -4,7 +4,7 @@
 
 ## Toolchain
 
-- Node `>=18` (CI runs Node 24). pnpm required. `packageManager` pins `pnpm@12.8.1` locally, but CI installs `pnpm@11.21.0` via `pnpm/action-setup@v6` — both versions work, lockfile is regenerated against whichever you have.
+- Node `>=18` (CI runs Node 24). pnpm required. `packageManager` pins `pnpm@12.8.1` locally, but CI installs `pnpm@12.8.1` via `pnpm/action-setup@v6` — both versions work, lockfile is regenerated against whichever you have.
 - TypeScript → `dist/` (ES2022, CommonJS, `strict: true`, declarations + sourcemaps). `tsconfig.json` excludes `**/*.test.ts`.
 - ESLint 9 flat config (`eslint.config.mjs`). Prettier 100 col, single quote, semicolons, 2-space.
 - `pnpm-workspace.yaml` lists `.` only (single package). `autoInstallPeers: false` and `onlyBuiltDependencies: [esbuild]` are pinned — do not flip them.
