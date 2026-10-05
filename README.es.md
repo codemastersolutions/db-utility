@@ -611,6 +611,7 @@ dbutility migrations --target <orm> [opciones] [opciones-conexión]
 | `--disable-table-exists-check` | Deshabilita la verificación predeterminada de existencia de la tabla en migraciones create-table | No                                                             |
 | `--tables <tables>`            | Lista de tablas separadas por coma para exportación de datos (Sobrescribe configuración)         | Sí (si `--data` o `--only-data` y no está en la configuración) |
 | `--test`                       | Ejecuta el comando test después de la generación de migraciones                                  | No                                                             |
+| `--no-sql-log`                 | Silencia el registro de SQL por instrucción durante la ejecución automática de pruebas            | No                                                             |
 
 Prioridad para `disableForeignKeys`: flag `--disable-foreign-keys` > `dbutility.config.json` > `.env`. Predeterminado: `false`.
 Prioridad para `disableTableExistsCheck`: flag `--disable-table-exists-check` > `dbutility.config.json` > `.env`. Predeterminado: `false`.
@@ -633,8 +634,11 @@ dbutility test --target <orm> [opciones]
 | `--dir <dir>`         | Directorio conteniendo las migraciones                                                             | No          |
 | `--engines <engines>` | Imágenes Docker para probar (ej: `postgres:14,mysql:8`)                                            | No          |
 | `--backup`            | Exporta backup de la base de datos del contenedor después de la prueba (Sobrescribe configuración) | No          |
+| `--no-sql-log`        | Silencia el registro de SQL por instrucción durante las pruebas (activo por defecto)               | No          |
 
 Cuando no se informa `--engines`, el comando `test` también respeta `migrations.testDatabase` del archivo de configuración.
+
+Por defecto, el proceso de prueba de migraciones imprime cada instrucción SQL que el ORM envía a la base de datos (con tiempo transcurrido) y un encabezado `→ Running migration …` antes de cada archivo de migración. Desactívelo con `--no-sql-log`, `migrations.test.logging: false` en el archivo de configuración, o `DBUTILITY_MIGRATIONS_TEST_LOGGING=false` en el entorno.
 
 ## Ejemplos de Uso
 

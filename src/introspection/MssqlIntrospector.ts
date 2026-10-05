@@ -45,6 +45,14 @@ interface MssqlIndexRow {
   column_name: string;
   key_ordinal: number;
   is_included_column: boolean;
+  filter_definition: string | null;
+}
+
+interface MssqlExtendedPropertyRow {
+  schema_name: string;
+  table_name: string;
+  column_name: string | null;
+  description: string | null;
 }
 
 interface MssqlFkRow {
@@ -76,6 +84,7 @@ export class MssqlIntrospector extends BaseIntrospector {
     const primaryKeys = await this.loadPrimaryKeys();
     const indexes = await this.loadIndexes();
     const foreignKeys = await this.loadForeignKeys();
+    const extendedProperties = (await this.loadExtendedProperties()) ?? [];
     const aliasTypes = columns.some((column) => column.alias_type_name)
       ? await this.loadAliasTypes()
       : [];
@@ -122,6 +131,7 @@ export class MssqlIntrospector extends BaseIntrospector {
         isUnique: false,
         isAutoIncrement: this.isIdentityColumn(c.is_identity),
         maxLength: c.character_maximum_length,
+        effectiveMaxLength: this.resolveEffectiveMaxLength(c, aliasTypes),
         numericPrecision: c.numeric_precision,
         numericScale: c.numeric_scale,
       };
@@ -141,6 +151,7 @@ export class MssqlIntrospector extends BaseIntrospector {
           includedColumns: [],
           isUnique: i.is_unique,
           isPrimary: i.is_primary,
+          filterDefinition: i.filter_definition,
         });
       }
 
@@ -190,6 +201,19 @@ export class MssqlIntrospector extends BaseIntrospector {
       const table = tableMap.get(buildTableKey(fk.tableSchemaName, fk.tableName));
       if (!table) return;
       table.foreignKeys.push(fk);
+    });
+
+    extendedProperties.forEach((ep) => {
+      const table = tableMap.get(buildTableKey(ep.schema_name, ep.table_name));
+      if (!table) return;
+      if (ep.column_name === null) {
+        table.description = ep.description;
+        return;
+      }
+      const column = table.columns.find((candidate) => candidate.name === ep.column_name);
+      if (column) {
+        column.description = ep.description;
+      }
     });
 
     const populatedTables = Array.from(tableMap.values()).filter(
@@ -297,7 +321,8 @@ export class MssqlIntrospector extends BaseIntrospector {
         ind.is_primary_key AS is_primary,
         col.name AS column_name,
         ic.key_ordinal,
-        ic.is_included_column
+        ic.is_included_column,
+        ind.filter_definition
       FROM sys.indexes ind
       INNER JOIN sys.index_columns ic
         ON ind.object_id = ic.object_id
@@ -312,6 +337,28 @@ export class MssqlIntrospector extends BaseIntrospector {
     `;
 
     return this.connector.query<MssqlIndexRow>(sql);
+  }
+
+  private async loadExtendedProperties(): Promise<MssqlExtendedPropertyRow[]> {
+    const sql = `
+      SELECT
+        SCHEMA_NAME(t.schema_id) AS schema_name,
+        t.name AS table_name,
+        c.name AS column_name,
+        CAST(ep.value AS nvarchar(max)) AS description
+      FROM sys.extended_properties ep
+      INNER JOIN sys.tables t
+        ON ep.major_id = t.object_id
+      LEFT JOIN sys.columns c
+        ON ep.major_id = c.object_id
+       AND ep.minor_id = c.column_id
+      WHERE t.is_ms_shipped = 0
+        AND ep.name = N'MS_Description'
+        AND ep.class IN (1, 2)
+      ORDER BY SCHEMA_NAME(t.schema_id), t.name, ep.minor_id
+    `;
+
+    return this.connector.query<MssqlExtendedPropertyRow>(sql);
   }
 
   private async loadForeignKeys(): Promise<MssqlFkRow[]> {
@@ -377,6 +424,27 @@ export class MssqlIntrospector extends BaseIntrospector {
 
   private normalizeDefaultValue(defaultValue: string | null): string | null {
     return defaultValue === null ? null : normalizeDatabaseDefault(defaultValue);
+  }
+
+  private resolveEffectiveMaxLength(
+    column: MssqlColumnRow,
+    aliasTypes: MssqlAliasTypeRow[],
+  ): number | null {
+    if (column.character_maximum_length !== null) {
+      return column.character_maximum_length;
+    }
+
+    if (!column.alias_type_name) {
+      return null;
+    }
+
+    const alias = aliasTypes.find(
+      (candidate) =>
+        candidate.type_name === column.alias_type_name &&
+        candidate.schema_name === column.alias_type_schema,
+    );
+
+    return alias?.max_length ?? null;
   }
 
   private isIdentityColumn(value: number | boolean): boolean {

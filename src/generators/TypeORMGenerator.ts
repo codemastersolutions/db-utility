@@ -1,4 +1,10 @@
-import { ColumnMetadata, DatabaseSchema, TableData } from '../types/introspection';
+import {
+  ColumnMetadata,
+  DatabaseSchema,
+  IndexMetadata,
+  TableData,
+  TableMetadata,
+} from '../types/introspection';
 import {
   formatMssqlQualifiedName,
   formatMssqlTypeReference,
@@ -8,8 +14,9 @@ import {
 } from '../utils/ColumnTypeUtils';
 import { filterAutoIncrementColumns } from '../utils/DataUtils';
 import { classifyDatabaseDefault } from '../utils/DefaultValueUtils';
-import { getGeneratableIndexes } from '../utils/IndexUtils';
+import { getGeneratableIndexes, getGeneratableIndexesDetailed } from '../utils/IndexUtils';
 import {
+  formatMssqlQualifiedTableName,
   getQualifiedTableName,
   getTableDataKey,
   getTableKey,
@@ -71,6 +78,7 @@ ${table.columns.map((c) => this.generateColumnDefinition(c)).join('\n')}
     const foreignKeyFiles: GeneratedFile[] = [];
     const disableForeignKeys = options?.disableForeignKeys ?? false;
     const disableTableExistsCheck = options?.disableTableExistsCheck ?? false;
+    const databaseType = options?.databaseType;
     const aliasTypes = getUsedAliasTypes(schema);
     const schemaNames = getUsedNonDefaultSchemaNames(schema);
     const tableDataByKey = new Map(
@@ -110,8 +118,15 @@ ${table.columns.map((c) => this.generateColumnDefinition(c)).join('\n')}
       counter++;
       const migrationName = `Create${this.formatModelName(getQualifiedTableName(table))}${timestamp + counter}`;
       const fileName = `${timestamp + counter}-${migrationName}.ts`;
-      const indexes = getGeneratableIndexes(table.indexes);
-      const tableReference = this.getTypeOrmTableReference(table.name, table.schemaName);
+      const indexResult = getGeneratableIndexesDetailed(table.indexes, table.columns, {
+        databaseType,
+      });
+      const indexes = indexResult.kept;
+      for (const dropped of indexResult.dropped) {
+        console.warn(
+          `[db-utility] Dropping index ${dropped.indexName} on ${getQualifiedTableName(table)}: ${dropped.reason} (columns: ${dropped.columns.join(', ')})`,
+        );
+      }
       const tableExistsCheckPart = disableTableExistsCheck
         ? ''
         : this.generateCreateTableExistsCheck(table.name, table.schemaName);
@@ -136,14 +151,7 @@ ${table.columns.map((c) => this.generateMigrationColumn(c)).join(',\n')}
 
 ${indexes
   .filter((idx) => !idx.isPrimary)
-  .map(
-    (idx) =>
-      `    await queryRunner.createIndex('${tableReference}', new TableIndex({
-      name: '${idx.name}',
-      columnNames: ['${idx.columns.join("', '")}'],
-      isUnique: ${idx.isUnique}
-    }));`,
-  )
+  .map((idx) => this.generateIndexStatement(table, idx, databaseType))
   .join('\n')}
 ${
   pkName && pkName !== 'PRIMARY'
@@ -154,6 +162,7 @@ ${
     `
     : ''
 }
+${databaseType === 'mssql' ? this.generateMssqlExtendedProperties(table) : ''}
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
@@ -347,6 +356,79 @@ export class ${migrationName} implements MigrationInterface {
 
   private formatModelName(name: string): string {
     return name.charAt(0).toUpperCase() + name.slice(1);
+  }
+
+  private generateIndexStatement(
+    table: TableMetadata,
+    index: IndexMetadata,
+    databaseType?: string,
+  ): string {
+    const tableReference = this.getTypeOrmTableReference(table.name, table.schemaName);
+    const filterDefinition = index.filterDefinition?.trim();
+
+    if (filterDefinition && databaseType === 'mssql') {
+      const qualifiedTableName = formatMssqlQualifiedTableName(table);
+      const columnsList = index.columns.map((c) => `[${c}]`).join(', ');
+      const uniqueKeyword = index.isUnique ? 'UNIQUE ' : '';
+      const safeForTemplate = filterDefinition
+        .replaceAll('\\', '\\\\')
+        .replaceAll('`', '\\`')
+        .replaceAll('${', '\\${');
+      return `    await queryRunner.query(\`CREATE ${uniqueKeyword}INDEX [${index.name}] ON ${qualifiedTableName} (${columnsList}) WHERE ${safeForTemplate}\`);`;
+    }
+
+    return `    await queryRunner.createIndex('${tableReference}', new TableIndex({
+      name: '${index.name}',
+      columnNames: ['${index.columns.join("', '")}'],
+      isUnique: ${index.isUnique}
+    }));`;
+  }
+
+  private generateMssqlExtendedProperties(table: TableMetadata): string {
+    const statements: string[] = [];
+    const schemaName = (table.schemaName ?? 'dbo').replaceAll(']', ']]');
+
+    if (table.description && table.description.trim().length > 0) {
+      statements.push(
+        `    await queryRunner.query(${this.formatMssqlExtendedPropertyCall(
+          table.description,
+          schemaName,
+          table.name,
+        )});`,
+      );
+    }
+
+    for (const column of table.columns) {
+      if (!column.description || column.description.trim().length === 0) continue;
+      statements.push(
+        `    await queryRunner.query(${this.formatMssqlExtendedPropertyCall(
+          column.description,
+          schemaName,
+          table.name,
+          column.name,
+        )});`,
+      );
+    }
+
+    return statements.join('\n');
+  }
+
+  private formatMssqlExtendedPropertyCall(
+    description: string,
+    schemaName: string,
+    tableName: string,
+    columnName?: string,
+  ): string {
+    const escaped = description.replaceAll("'", "''");
+    const columnClause = columnName
+      ? `, @level2type = N'COLUMN', @level2name = N'${columnName.replaceAll("'", "''")}'`
+      : '';
+    const rawSql = `EXEC sp_addextendedproperty @name = N'MS_Description', @value = N'${escaped}', @level0type = N'SCHEMA', @level0name = N'${schemaName}', @level1type = N'TABLE', @level1name = N'${tableName}'${columnClause};`;
+    const safeForTemplate = rawSql
+      .replaceAll('\\', '\\\\')
+      .replaceAll('`', '\\`')
+      .replaceAll('${', '\\${');
+    return `\`${safeForTemplate}\``;
   }
 
   private generateCreateTableExistsCheck(tableName: string, schemaName?: string): string {

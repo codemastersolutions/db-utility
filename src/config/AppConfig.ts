@@ -21,6 +21,15 @@ export interface MigrationTestDatabaseImageConfig {
 
 export type MigrationTestDatabaseConfig = string | MigrationTestDatabaseImageConfig;
 
+export interface MigrationTestOptions {
+  /**
+   * When true (default), the migration test process prints every SQL statement
+   * that the ORM sends to the database, including elapsed time. Set to false
+   * (or pass `--no-sql-log` on the CLI) to silence the SQL log.
+   */
+  logging?: boolean;
+}
+
 export interface MigrationConfig {
   outputDir?: string;
   fileNamePattern: 'timestamp-prefix' | 'prefix-timestamp';
@@ -31,6 +40,7 @@ export interface MigrationConfig {
   disableTableExistsCheck?: boolean;
   exportOnlyInDataTables?: boolean;
   testDatabase?: MigrationTestDatabaseConfig;
+  test?: MigrationTestOptions;
   connectionName?: string;
 }
 
@@ -66,6 +76,9 @@ const defaultMigrationConfig: MigrationConfig = {
   disableForeignKeys: false,
   disableTableExistsCheck: false,
   exportOnlyInDataTables: false,
+  test: {
+    logging: true,
+  },
 };
 
 const defaultConfig: AppConfig = {
@@ -197,6 +210,9 @@ export class AppConfigLoader {
     const rawMigrationsDisableTableExistsCheck =
       process.env.DB_UTILITY_MIGRATIONS_DISABLE_TABLE_EXISTS_CHECK ||
       process.env.DBUTILITY_MIGRATIONS_DISABLE_TABLE_EXISTS_CHECK;
+    const rawMigrationsTestLogging =
+      process.env.DB_UTILITY_MIGRATIONS_TEST_LOGGING ||
+      process.env.DBUTILITY_MIGRATIONS_TEST_LOGGING;
 
     const config: RawAppConfig = {};
 
@@ -225,7 +241,8 @@ export class AppConfigLoader {
       rawMigrationsDataTables ||
       rawMigrationsBackup ||
       rawMigrationsDisableForeignKeys ||
-      rawMigrationsDisableTableExistsCheck
+      rawMigrationsDisableTableExistsCheck ||
+      rawMigrationsTestLogging
     ) {
       const fileNamePattern: 'timestamp-prefix' | 'prefix-timestamp' =
         rawMigrationsFileNamePattern === 'prefix-timestamp'
@@ -245,6 +262,9 @@ export class AppConfigLoader {
       const disableTableExistsCheck = rawMigrationsDisableTableExistsCheck
         ? rawMigrationsDisableTableExistsCheck === 'true'
         : undefined;
+      const testLogging = rawMigrationsTestLogging
+        ? rawMigrationsTestLogging === 'true'
+        : undefined;
 
       config.migrations = this.mergeMigrationConfig(
         {
@@ -254,6 +274,7 @@ export class AppConfigLoader {
           ...(backup === undefined ? {} : { backup }),
           ...(disableForeignKeys === undefined ? {} : { disableForeignKeys }),
           ...(disableTableExistsCheck === undefined ? {} : { disableTableExistsCheck }),
+          ...(testLogging === undefined ? {} : { test: { logging: testLogging } }),
         },
         undefined,
         fileNamePattern,
@@ -322,6 +343,7 @@ export class AppConfigLoader {
       fileMigration?.disableTableExistsCheck ?? envMigration?.disableTableExistsCheck;
     const exportOnlyInDataTables = fileMigration?.exportOnlyInDataTables;
     const testDatabase = this.normalizeMigrationTestDatabase(fileMigration?.testDatabase);
+    const testLogging = fileMigration?.test?.logging ?? envMigration?.test?.logging;
     const connectionName = fileMigration?.connectionName;
 
     return {
@@ -335,6 +357,7 @@ export class AppConfigLoader {
       ...(disableTableExistsCheck === undefined ? {} : { disableTableExistsCheck }),
       ...(exportOnlyInDataTables === undefined ? {} : { exportOnlyInDataTables }),
       ...(testDatabase === undefined ? {} : { testDatabase }),
+      ...(testLogging === undefined ? {} : { test: { logging: testLogging } }),
       ...(connectionName ? { connectionName } : {}),
     };
   }
@@ -359,6 +382,7 @@ export class AppConfigLoader {
     const exportOnlyInDataTables =
       raw?.exportOnlyInDataTables ?? defaultMigrationConfig.exportOnlyInDataTables;
     const testDatabase = this.normalizeMigrationTestDatabase(raw?.testDatabase);
+    const testLogging = raw?.test?.logging ?? defaultMigrationConfig.test?.logging;
     const connectionName = raw?.connectionName;
 
     return {
@@ -371,6 +395,7 @@ export class AppConfigLoader {
       disableTableExistsCheck,
       exportOnlyInDataTables,
       ...(testDatabase === undefined ? {} : { testDatabase }),
+      ...(testLogging === undefined ? {} : { test: { logging: testLogging } }),
       ...(outputDir ? { outputDir } : {}),
       ...(connectionName ? { connectionName } : {}),
     };

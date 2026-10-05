@@ -51,6 +51,7 @@ export class MigrationTester {
     engines?: string[],
     backup?: boolean,
     testDatabase?: MigrationTestDatabaseConfig,
+    options?: { logging?: boolean },
   ): Promise<void> {
     const hasDocker = await this.containerManager.checkDocker();
     if (!hasDocker) {
@@ -147,6 +148,7 @@ export class MigrationTester {
           ormPath,
           backup,
           effectiveTestDatabase,
+          options,
         );
         result.engine = `${result.engine} (${target} v${versionLabel})`;
         results.push(result);
@@ -630,6 +632,7 @@ export class MigrationTester {
     ormPath?: string,
     backup?: boolean,
     testDatabase?: MigrationTestDatabaseConfig,
+    options?: { logging?: boolean },
   ): Promise<TestResult> {
     const startTime = Date.now();
     const password = randomBytes(18).toString('base64url');
@@ -694,7 +697,16 @@ export class MigrationTester {
       // Run Migrations
       const runner = this.getRunner(target, ormPath);
       console.log(`Running migrations using ${target} runner...`);
-      await runner.run(migrationsDir, config);
+      if (options?.logging === false) {
+        console.log('SQL logging disabled for this test run.');
+      } else {
+        console.log(
+          `SQL logging enabled — every statement sent to ${config.type}@${
+            config.host ?? 'localhost'
+          }:${config.port ?? '?'}/${config.database ?? '?'} will be printed.`,
+        );
+      }
+      await runner.run(migrationsDir, config, { logging: options?.logging });
 
       if (backup && containerId) {
         console.log('Exporting database backup...');

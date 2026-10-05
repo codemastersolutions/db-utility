@@ -1,4 +1,10 @@
-import { ColumnMetadata, DatabaseSchema, TableData } from '../types/introspection';
+import {
+  ColumnMetadata,
+  DatabaseSchema,
+  IndexMetadata,
+  TableData,
+  TableMetadata,
+} from '../types/introspection';
 import {
   formatMssqlQualifiedName,
   formatMssqlTypeReference,
@@ -8,7 +14,7 @@ import {
 } from '../utils/ColumnTypeUtils';
 import { filterAutoIncrementColumns } from '../utils/DataUtils';
 import { classifyDatabaseDefault } from '../utils/DefaultValueUtils';
-import { getGeneratableIndexes } from '../utils/IndexUtils';
+import { getGeneratableIndexes, getGeneratableIndexesDetailed } from '../utils/IndexUtils';
 import {
   formatMssqlQualifiedTableName,
   getUsedNonDefaultSchemaNames,
@@ -88,6 +94,7 @@ ${indexes
     const foreignKeyFiles: GeneratedFile[] = [];
     const disableForeignKeys = options?.disableForeignKeys ?? false;
     const disableTableExistsCheck = options?.disableTableExistsCheck ?? false;
+    const databaseType = options?.databaseType;
     const aliasTypes = getUsedAliasTypes(schema);
     const schemaNames = getUsedNonDefaultSchemaNames(schema);
     const tableDataByKey = new Map(
@@ -133,7 +140,15 @@ ${indexes
       const migrationName = `${timestamp}${paddedCounter}-create-${getQualifiedTableName(table)}.js`;
 
       const hasAutoIncrement = table.columns.some((c) => c.isAutoIncrement);
-      const indexes = getGeneratableIndexes(table.indexes);
+      const indexResult = getGeneratableIndexesDetailed(table.indexes, table.columns, {
+        databaseType,
+      });
+      const indexes = indexResult.kept;
+      for (const dropped of indexResult.dropped) {
+        console.warn(
+          `[db-utility] Dropping index ${dropped.indexName} on ${getQualifiedTableName(table)}: ${dropped.reason} (columns: ${dropped.columns.join(', ')})`,
+        );
+      }
       const tableReference = this.serializeTableReference(table.name, table.schemaName);
       const tableExistsCheckPart = disableTableExistsCheck
         ? ''
@@ -159,15 +174,19 @@ ${table.columns.map((c) => this.generateMigrationColumn(c, !hasAutoIncrement, fa
 
       const indexesPart = indexes
         .filter((idx) => !idx.isPrimary)
-        .map(
-          (idx) =>
-            `await queryInterface.addIndex(${tableReference}, ['${idx.columns.join(
-              "','",
-            )}'], { name: '${idx.name}', unique: ${idx.isUnique} });`,
-        )
+        .map((idx) => this.generateIndexStatement(table, idx, databaseType))
         .join('\n    ');
 
-      const upBody = [tableExistsCheckPart, createTablePart, pkConstraintsPart, indexesPart]
+      const extendedPropertiesPart =
+        databaseType === 'mssql' ? this.generateMssqlExtendedProperties(table) : '';
+
+      const upBody = [
+        tableExistsCheckPart,
+        createTablePart,
+        pkConstraintsPart,
+        indexesPart,
+        extendedPropertiesPart,
+      ]
         .filter((part) => part.trim().length > 0)
         .join('\n\n    ');
 
@@ -396,6 +415,78 @@ module.exports = {
     }
 
     return `fields: ['${referencedColumns.join("','")}']`;
+  }
+
+  private generateIndexStatement(
+    table: TableMetadata,
+    index: IndexMetadata,
+    databaseType?: string,
+  ): string {
+    const tableReference = this.serializeTableReference(table.name, table.schemaName);
+    const filterDefinition = index.filterDefinition?.trim();
+
+    if (filterDefinition && databaseType === 'mssql') {
+      const qualifiedTableName = formatMssqlQualifiedTableName(table);
+      const columnsList = index.columns.map((c) => `[${c}]`).join(', ');
+      const uniqueKeyword = index.isUnique ? 'UNIQUE ' : '';
+      const safeForTemplate = filterDefinition
+        .replaceAll('\\', '\\\\')
+        .replaceAll('`', '\\`')
+        .replaceAll('${', '\\${');
+      return `await queryInterface.sequelize.query(\`CREATE ${uniqueKeyword}INDEX [${index.name}] ON ${qualifiedTableName} (${columnsList}) WHERE ${safeForTemplate}\`);`;
+    }
+
+    return `await queryInterface.addIndex(${tableReference}, ['${index.columns.join(
+      "','",
+    )}'], { name: '${index.name}', unique: ${index.isUnique} });`;
+  }
+
+  private generateMssqlExtendedProperties(table: TableMetadata): string {
+    const statements: string[] = [];
+    const schemaName = (table.schemaName ?? 'dbo').replaceAll(']', ']]');
+
+    if (table.description && table.description.trim().length > 0) {
+      statements.push(
+        `await queryInterface.sequelize.query(${this.formatMssqlExtendedPropertyCall(
+          table.description,
+          schemaName,
+          table.name,
+        )});`,
+      );
+    }
+
+    for (const column of table.columns) {
+      if (!column.description || column.description.trim().length === 0) continue;
+      statements.push(
+        `await queryInterface.sequelize.query(${this.formatMssqlExtendedPropertyCall(
+          column.description,
+          schemaName,
+          table.name,
+          column.name,
+        )});`,
+      );
+    }
+
+    return statements.join('\n    ');
+  }
+
+  private formatMssqlExtendedPropertyCall(
+    description: string,
+    schemaName: string,
+    tableName: string,
+    columnName?: string,
+  ): string {
+    const escaped = description.replaceAll("'", "''");
+    const columnClause = columnName
+      ? `, @level2type = N'COLUMN', @level2name = N'${columnName.replaceAll("'", "''")}'`
+      : '';
+    const rawSql = `EXEC sp_addextendedproperty @name = N'MS_Description', @value = N'${escaped}', @level0type = N'SCHEMA', @level0name = N'${schemaName}', @level1type = N'TABLE', @level1name = N'${tableName}'${columnClause};`;
+    // Escape characters that would break the surrounding template literal.
+    const safeForTemplate = rawSql
+      .replaceAll('\\', '\\\\')
+      .replaceAll('`', '\\`')
+      .replaceAll('${', '\\${');
+    return `\`${safeForTemplate}\``;
   }
 
   private generateAliasTypeMigration(
@@ -702,8 +793,17 @@ function reviveSeedRows(rows) {
     if (lower.includes('char')) return this.mapStringType(col);
 
     // Binary
-    if (lower.includes('image') || lower.includes('binary') || lower.includes('blob'))
+    if (lower.includes('image') || lower.includes('blob')) return 'DataTypes.BLOB';
+
+    if (lower.includes('binary')) {
+      const maxLength = col.effectiveMaxLength ?? col.maxLength;
+      if (typeof maxLength === 'number' && maxLength > 0) {
+        // MSSQL Sequelize renders STRING(N, true) as BINARY(N); BLOB always renders as
+        // VARBINARY(MAX) regardless of the length argument.
+        return `DataTypes.STRING(${maxLength}, true)`;
+      }
       return 'DataTypes.BLOB';
+    }
 
     // UUID
     if (lower.includes('uuid') || lower.includes('guid')) return 'DataTypes.UUID';

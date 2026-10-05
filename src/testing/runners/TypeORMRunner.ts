@@ -2,9 +2,51 @@ import { join } from 'node:path';
 import { readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { DatabaseConfig } from '../../types/database';
-import { MigrationRunner } from './MigrationRunner';
+import { MigrationRunner, MigrationRunnerOptions } from './MigrationRunner';
 
 const localRequire = createRequire(__filename);
+
+const formatSql = (sql: string): string => sql.replace(/\s+/g, ' ').trim();
+
+const defaultTypeOrmLogger = (connectionLabel: string) => {
+  return {
+    log: (level: 'log' | 'info' | 'warn', message: unknown) => {
+      const text = typeof message === 'string' ? message : JSON.stringify(message);
+      const prefix =
+        level === 'warn'
+          ? `[${connectionLabel} typeorm-warn]`
+          : `[${connectionLabel} typeorm-info]`;
+      console.log(`  ${prefix} ${text}`);
+    },
+    logMigration: (message: string) => {
+      console.log(`  → [${connectionLabel} migration] ${message}`);
+    },
+    logQuery: (query: string, parameters?: unknown[]) => {
+      const formatted = formatSql(query);
+      const params =
+        Array.isArray(parameters) && parameters.length > 0 ? ` ${JSON.stringify(parameters)}` : '';
+      console.log(`  → [${connectionLabel} sql] ${formatted}${params}`);
+    },
+    logQueryError: (error: string, query: string, parameters?: unknown[]) => {
+      const formatted = formatSql(query);
+      const params =
+        Array.isArray(parameters) && parameters.length > 0 ? ` ${JSON.stringify(parameters)}` : '';
+      console.error(`  ✗ [${connectionLabel} sql-error] ${error} :: ${formatted}${params}`);
+    },
+    logQuerySlow: (time: number, query: string, parameters?: unknown[]) => {
+      const formatted = formatSql(query);
+      const params =
+        Array.isArray(parameters) && parameters.length > 0 ? ` ${JSON.stringify(parameters)}` : '';
+      console.warn(`  ⚠ [${connectionLabel} sql-slow ${time}ms] ${formatted}${params}`);
+    },
+    logSchemaBuild: (message: string) => {
+      console.log(`  [${connectionLabel} schema] ${message}`);
+    },
+    logEvent: (event: Record<string, unknown>) => {
+      console.log(`  [${connectionLabel} event] ${JSON.stringify(event)}`);
+    },
+  };
+};
 
 export class TypeORMRunner implements MigrationRunner {
   private ormPath?: string;
@@ -13,7 +55,11 @@ export class TypeORMRunner implements MigrationRunner {
     this.ormPath = ormPath;
   }
 
-  async run(migrationsDir: string, config: DatabaseConfig): Promise<void> {
+  async run(
+    migrationsDir: string,
+    config: DatabaseConfig,
+    options?: MigrationRunnerOptions,
+  ): Promise<void> {
     const cwd = process.cwd();
     let DataSourceClass;
 
@@ -60,6 +106,11 @@ export class TypeORMRunner implements MigrationRunner {
           ? { ssl: { rejectUnauthorized: false } }
           : undefined;
 
+    const sqlLoggingEnabled = options?.logging !== false;
+    const connectionLabel = `typeorm → ${config.host ?? 'localhost'}:${config.port ?? '?'}/${
+      config.database ?? '?'
+    }`;
+
     const dataSource = new DataSourceClass({
       type: config.type,
       host: config.host,
@@ -68,7 +119,8 @@ export class TypeORMRunner implements MigrationRunner {
       password: config.password,
       database: config.database,
       synchronize: false,
-      logging: false,
+      logging: sqlLoggingEnabled ? 'all' : false,
+      logger: sqlLoggingEnabled ? defaultTypeOrmLogger(connectionLabel) : undefined,
       entities: [],
       migrations: [],
       ssl: config.ssl ? { rejectUnauthorized: false } : false,
@@ -90,7 +142,7 @@ export class TypeORMRunner implements MigrationRunner {
         });
 
       for (const file of files) {
-        console.log(`Running migration: ${file}`);
+        console.log(`→ Running migration: ${file} (SQL will be logged as it executes)`);
         const migrationPath = join(migrationsDir, file);
 
         // Dynamic import/require
@@ -107,6 +159,7 @@ export class TypeORMRunner implements MigrationRunner {
             await instance.up(queryRunner);
           }
         }
+        console.log(`✓ Migration completed: ${file}`);
       }
 
       await queryRunner.release();

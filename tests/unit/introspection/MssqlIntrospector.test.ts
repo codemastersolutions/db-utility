@@ -361,6 +361,7 @@ describe('MssqlIntrospector', () => {
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
         .mockResolvedValueOnce([
           {
             type_name: 'DIMAGEM',
@@ -485,6 +486,7 @@ describe('MssqlIntrospector', () => {
         ])
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
         .mockResolvedValueOnce([]),
     };
 
@@ -492,5 +494,104 @@ describe('MssqlIntrospector', () => {
     const schema = await introspector.introspectSchema();
 
     expect(schema.tables.map((table) => table.name)).toEqual(['Users']);
+  });
+
+  it('should capture the WHERE clause of filtered MSSQL indexes', async () => {
+    const connector: IDatabaseConnector = {
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      isConnected: vi.fn(),
+      getVersion: vi.fn(),
+      query: vi
+        .fn()
+        .mockResolvedValueOnce([{ schema_name: 'dbo', table_name: 'LTipoDocumentos' }])
+        .mockResolvedValueOnce([
+          {
+            schema_name: 'dbo',
+            table_name: 'LTipoDocumentos',
+            column_name: 'classe',
+            data_type: 'varchar',
+            is_nullable: 'NO',
+            column_default: null,
+            character_maximum_length: 255,
+            numeric_precision: null,
+            numeric_scale: null,
+            is_identity: 0,
+          },
+        ])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          {
+            schema_name: 'dbo',
+            table_name: 'LTipoDocumentos',
+            index_name: 'UX_LTipoDocumentos_classe_nome',
+            is_unique: true,
+            is_primary: false,
+            column_name: 'classe',
+            key_ordinal: 1,
+            is_included_column: false,
+            filter_definition: '([deleted_at] IS NULL)',
+          },
+        ])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]),
+    };
+
+    const introspector = new MssqlIntrospector(connector);
+    const schema = await introspector.introspectSchema();
+    const index = schema.tables[0].indexes[0];
+
+    expect(index.filterDefinition).toBe('([deleted_at] IS NULL)');
+    expect(index.isUnique).toBe(true);
+  });
+
+  it('should attach MS_Description extended properties to tables and columns', async () => {
+    const connector: IDatabaseConnector = {
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      isConnected: vi.fn(),
+      getVersion: vi.fn(),
+      query: vi
+        .fn()
+        .mockResolvedValueOnce([{ schema_name: 'dbo', table_name: 'LTipoDocumentos' }])
+        .mockResolvedValueOnce([
+          {
+            schema_name: 'dbo',
+            table_name: 'LTipoDocumentos',
+            column_name: 'id',
+            data_type: 'int',
+            is_nullable: 'NO',
+            column_default: null,
+            character_maximum_length: null,
+            numeric_precision: 10,
+            numeric_scale: 0,
+            is_identity: 0,
+          },
+        ])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          {
+            schema_name: 'dbo',
+            table_name: 'LTipoDocumentos',
+            column_name: null,
+            description: 'Tabela de tipos de documentos',
+          },
+          {
+            schema_name: 'dbo',
+            table_name: 'LTipoDocumentos',
+            column_name: 'id',
+            description: 'ID do tipo de documento',
+          },
+        ]),
+    };
+
+    const introspector = new MssqlIntrospector(connector);
+    const schema = await introspector.introspectSchema();
+    const table = schema.tables[0];
+
+    expect(table.description).toBe('Tabela de tipos de documentos');
+    expect(table.columns[0].description).toBe('ID do tipo de documento');
   });
 });

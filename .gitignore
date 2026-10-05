@@ -10,3 +10,4 @@ coverage
 exports
 db-utility-migrations
 dbutility.config.json
+.serena

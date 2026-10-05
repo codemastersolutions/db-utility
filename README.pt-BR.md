@@ -611,6 +611,7 @@ dbutility migrations --target <orm> [opções] [opções-conexão]
 | `--disable-table-exists-check` | Desabilita a verificação padrão de existência da tabela nas migrations de create-table     | Não                                                              |
 | `--tables <tables>`            | Lista de tabelas separadas por vírgula para exportação de dados (Sobrescreve configuração) | Sim (se `--data` ou `--only-data` e não estiver na configuração) |
 | `--test`                       | Executa o comando test após a geração das migrações                                        | Não                                                              |
+| `--no-sql-log`                 | Silencia o log SQL por instrução durante a execução automática dos testes                  | Não                                                              |
 
 Prioridade para `disableForeignKeys`: flag `--disable-foreign-keys` > `dbutility.config.json` > `.env`. Padrão: `false`.
 Prioridade para `disableTableExistsCheck`: flag `--disable-table-exists-check` > `dbutility.config.json` > `.env`. Padrão: `false`.
@@ -633,8 +634,11 @@ dbutility test --target <orm> [opções]
 | `--dir <dir>`         | Diretório contendo as migrações                                                       | Não         |
 | `--engines <engines>` | Imagens Docker para testar (ex: `postgres:14,mysql:8`)                                | Não         |
 | `--backup`            | Exporta backup do banco de dados do container após o teste (Sobrescreve configuração) | Não         |
+| `--no-sql-log`        | Silencia o log SQL por instrução durante a execução dos testes (ativo por padrão)     | Não         |
 
 Quando `--engines` não for informado, o comando `test` também respeita `migrations.testDatabase` do arquivo de configuração.
+
+Por padrão, o processo de teste de migrations imprime cada instrução SQL que o ORM envia ao banco (com o tempo decorrido) e um cabeçalho `→ Running migration …` antes de cada arquivo de migração. Desative com `--no-sql-log`, `migrations.test.logging: false` no arquivo de configuração, ou `DBUTILITY_MIGRATIONS_TEST_LOGGING=false` no ambiente.
 
 ## Exemplos de Uso
 

@@ -164,6 +164,7 @@ interface CliOptions {
   onlyData?: boolean;
   test?: boolean;
   backup?: boolean;
+  sqlLog?: boolean;
   disableForeignKeys?: boolean;
   disableTableExistsCheck?: boolean;
 }
@@ -174,6 +175,7 @@ const runTest = async (options: {
   engines?: string;
   backup?: boolean;
   testDatabase?: MigrationTestDatabaseConfig;
+  sqlLog?: boolean;
 }) => {
   const target = options.target || appConfig.target;
   if (!target) {
@@ -193,8 +195,11 @@ const runTest = async (options: {
   const containerManager = new ContainerManager();
   const tester = new MigrationTester(containerManager);
 
-  const backup = options.backup ?? getPrimaryMigrationConfig(appConfig.migrations).backup;
-  await tester.test(target, migrationsDir, engines, backup, options.testDatabase);
+  const primaryMigrationConfig = getPrimaryMigrationConfig(appConfig.migrations);
+  const backup = options.backup ?? primaryMigrationConfig.backup;
+  const logging = options.sqlLog === false ? false : primaryMigrationConfig.test?.logging !== false;
+
+  await tester.test(target, migrationsDir, engines, backup, options.testDatabase, { logging });
 };
 
 const printIntrospectionWarnings = (schema: Parameters<typeof buildIntrospectionWarnings>[0]) => {
@@ -374,6 +379,7 @@ addConnectionOptions(migrateCommand)
   .option('--data', 'Generate data migration')
   .option('--only-data', 'Generate only data migration')
   .option('--backup', 'Export database backup from container after automatic test execution')
+  .option('--no-sql-log', 'Disable SQL logging while running automatic tests')
   .option('--disable-foreign-keys', 'Disable foreign key migration generation')
   .option(
     '--disable-table-exists-check',
@@ -440,6 +446,8 @@ addConnectionOptions(migrateCommand)
             options.disableTableExistsCheck,
             migrationConfig,
           ),
+          databaseType: config.type,
+          testDatabase: migrationConfig.testDatabase,
         };
         const schemaToGenerate = exportOnlyInDataTables
           ? filterSchemaByDataTables(schema, configuredDataTables)
@@ -569,6 +577,7 @@ addConnectionOptions(migrateCommand)
             dir: outputDir,
             backup: backupEnabled,
             testDatabase: migrationConfig.testDatabase,
+            sqlLog: options.sqlLog,
           });
         } catch (error) {
           handleCliError(error);
@@ -587,10 +596,18 @@ testCommand
     'Comma separated list of engines to test (e.g. postgres:14,mysql:8)',
   )
   .option('--backup', 'Export database backup from container')
+  .option('--no-sql-log', 'Disable SQL logging while running migrations')
   .action(
-    async (options: { target?: string; dir?: string; engines?: string; backup?: boolean }) => {
+    async (options: {
+      target?: string;
+      dir?: string;
+      engines?: string;
+      backup?: boolean;
+      sqlLog?: boolean;
+    }) => {
       try {
-        await runTest(options);
+        const configTestDatabase = getPrimaryMigrationConfig(appConfig.migrations).testDatabase;
+        await runTest({ ...options, testDatabase: configTestDatabase });
       } catch (error) {
         handleCliError(error);
       }

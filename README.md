@@ -611,6 +611,7 @@ dbutility migrations --target <orm> [options] [connection-options]
 | `--disable-table-exists-check` | Disable the default existing-table guard in create-table migrations  | No                                                   |
 | `--tables <tables>`            | Comma-separated list of tables for data export (Overrides config)    | Yes (if `--data` or `--only-data` and not in config) |
 | `--test`                       | Run test command after migration generation                          | No                                                   |
+| `--no-sql-log`                 | Silence the per-statement SQL log while running automatic tests       | No                                                   |
 
 Priority for `disableForeignKeys`: CLI flag `--disable-foreign-keys` > `dbutility.config.json` > `.env`. Default: `false`.
 Priority for `disableTableExistsCheck`: CLI flag `--disable-table-exists-check` > `dbutility.config.json` > `.env`. Default: `false`.
@@ -633,8 +634,11 @@ dbutility test --target <orm> [options]
 | `--dir <dir>`         | Directory containing migrations                                     | No       |
 | `--engines <engines>` | Docker images to test (e.g., `postgres:14,mysql:8`)                 | No       |
 | `--backup`            | Export database backup from container after test (Overrides config) | No       |
+| `--no-sql-log`        | Silence the per-statement SQL log (enabled by default)              | No       |
 
 When `--engines` is not provided, the `test` command also honors `migrations.testDatabase` from the configuration file.
+
+By default the migration test process prints every SQL statement the ORM sends to the database (with elapsed time) and a `→ Running migration …` header before each migration file. Disable with `--no-sql-log`, `migrations.test.logging: false` in the config file, or `DBUTILITY_MIGRATIONS_TEST_LOGGING=false` in the environment.
 
 ## Usage Examples
 

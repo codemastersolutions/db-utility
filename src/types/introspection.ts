@@ -11,8 +11,10 @@ export interface ColumnMetadata {
   isUnique: boolean;
   isAutoIncrement: boolean;
   maxLength?: number | null;
+  effectiveMaxLength?: number | null;
   numericPrecision?: number | null;
   numericScale?: number | null;
+  description?: string | null;
 }
 
 export interface IndexMetadata {
@@ -21,6 +23,12 @@ export interface IndexMetadata {
   includedColumns?: string[];
   isUnique: boolean;
   isPrimary: boolean;
+  /**
+   * Raw WHERE clause for filtered indexes (MSSQL). When set, the generator
+   * emits the index via raw `CREATE INDEX ... WHERE <filter>` SQL instead
+   * of the dialect-agnostic `addIndex` helper.
+   */
+  filterDefinition?: string | null;
 }
 
 export interface ForeignKeyMetadata {
@@ -41,6 +49,7 @@ export interface TableMetadata {
   columns: ColumnMetadata[];
   indexes: IndexMetadata[];
   foreignKeys: ForeignKeyMetadata[];
+  description?: string | null;
 }
 
 export interface AliasTypeMetadata {

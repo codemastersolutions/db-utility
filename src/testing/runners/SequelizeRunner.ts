@@ -2,9 +2,20 @@ import { join } from 'node:path';
 import { readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { DatabaseConfig } from '../../types/database';
-import { MigrationRunner } from './MigrationRunner';
+import { MigrationRunner, MigrationRunnerOptions } from './MigrationRunner';
 
 const localRequire = createRequire(__filename);
+
+const formatSql = (sql: string): string => sql.replace(/\s+/g, ' ').trim();
+
+const defaultSequelizeLogger =
+  (connectionLabel: string) =>
+  (sql: string, elapsedMs?: number): void => {
+    const timing =
+      typeof elapsedMs === 'number' && Number.isFinite(elapsedMs) ? `${elapsedMs}ms` : '?ms';
+    const preview = formatSql(sql);
+    console.log(`  ← [${connectionLabel} sql] (${timing}) ${preview}`);
+  };
 
 export class SequelizeRunner implements MigrationRunner {
   private ormPath?: string;
@@ -13,7 +24,11 @@ export class SequelizeRunner implements MigrationRunner {
     this.ormPath = ormPath;
   }
 
-  async run(migrationsDir: string, config: DatabaseConfig): Promise<void> {
+  async run(
+    migrationsDir: string,
+    config: DatabaseConfig,
+    options?: MigrationRunnerOptions,
+  ): Promise<void> {
     const cwd = process.cwd();
     let SequelizeClass;
 
@@ -38,12 +53,18 @@ export class SequelizeRunner implements MigrationRunner {
       );
     }
 
+    const sqlLoggingEnabled = options?.logging !== false;
+    const connectionLabel = `sequelize → ${config.host ?? 'localhost'}:${config.port ?? '?'}/${
+      config.database ?? '?'
+    }`;
+
     const sequelize = new SequelizeClass(config.database!, config.username!, config.password!, {
       host: config.host,
       port: config.port,
       dialect:
         config.type === 'mssql' ? 'mssql' : config.type === 'postgres' ? 'postgres' : 'mysql',
-      logging: false,
+      logging: sqlLoggingEnabled ? defaultSequelizeLogger(connectionLabel) : false,
+      benchmark: true,
       dialectOptions: {
         options: {
           encrypt: false,
@@ -69,11 +90,12 @@ export class SequelizeRunner implements MigrationRunner {
         .sort(); // Ensure chronological order
 
       for (const file of files) {
-        console.log(`Running migration: ${file}`);
+        console.log(`→ Running migration: ${file} (SQL will be logged as it executes)`);
         const migrationPath = join(migrationsDir, file);
         const migration = localRequire(migrationPath);
 
         await migration.up(queryInterface, SequelizeClass);
+        console.log(`✓ Migration completed: ${file}`);
       }
     } finally {
       await sequelize.close();

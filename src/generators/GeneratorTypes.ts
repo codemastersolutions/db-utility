@@ -1,4 +1,6 @@
+import { DatabaseType } from '../types/database';
 import { DatabaseSchema, TableData } from '../types/introspection';
+import { MigrationTestDatabaseConfig } from '../config/AppConfig';
 
 export interface GeneratedFile {
   fileName: string;
@@ -12,6 +14,8 @@ export interface SchemaGenerator {
 export interface MigrationGenerationOptions {
   disableForeignKeys?: boolean;
   disableTableExistsCheck?: boolean;
+  databaseType?: DatabaseType;
+  testDatabase?: MigrationTestDatabaseConfig;
 }
 
 export interface MigrationGenerator {

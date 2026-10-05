@@ -79,6 +79,47 @@ describe('SequelizeGenerator Type Mapping', () => {
     expect(content).not.toContain('Sequelize.STRING(8000)');
   });
 
+  it('should map binary(32) to STRING(32, true) so MSSQL renders BINARY(32)', async () => {
+    const col: ColumnMetadata = {
+      name: 'chave',
+      dataType: 'binary',
+      maxLength: 32,
+      isNullable: false,
+      hasDefault: false,
+      isPrimaryKey: false,
+      isUnique: false,
+      isAutoIncrement: false,
+    };
+
+    const modelFiles = await generator.generate(createSchema(col));
+    const migrationFiles = await generator.generateMigrations(createSchema(col));
+
+    expect(modelFiles[0].content).toContain('chave: {');
+    expect(modelFiles[0].content).toContain('type: DataTypes.STRING(32, true)');
+
+    expect(migrationFiles[0].content).toContain('chave: {');
+    expect(migrationFiles[0].content).toContain('type: Sequelize.STRING(32, true)');
+  });
+
+  it('should map varbinary(max) to DataTypes.BLOB', async () => {
+    const col: ColumnMetadata = {
+      name: 'hash',
+      dataType: 'varbinary',
+      maxLength: -1,
+      isNullable: true,
+      hasDefault: false,
+      isPrimaryKey: false,
+      isUnique: false,
+      isAutoIncrement: false,
+    };
+
+    const files = await generator.generate(createSchema(col));
+    const content = files[0].content;
+
+    expect(content).toContain('hash: {');
+    expect(content).toContain('type: DataTypes.BLOB');
+  });
+
   it('should keep nvarchar(4000) as DataTypes.STRING(4000)', async () => {
     const col: ColumnMetadata = {
       name: 'descricao',
